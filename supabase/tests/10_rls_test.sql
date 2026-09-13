@@ -1,0 +1,671 @@
+-- ============================================================================
+-- RLS / integrity test suite.
+--
+-- Run with:
+--   psql -d finance_schema_test -v ON_ERROR_STOP=1 -f supabase/tests/10_rls_test.sql
+--
+-- Uses SET LOCAL ROLE authenticated + request.jwt.claim.sub to emulate two
+-- different logged-in users. Any RAISE EXCEPTION fails the run (ON_ERROR_STOP).
+-- ============================================================================
+
+\set ON_ERROR_STOP on
+
+-- Deterministic test data -----------------------------------------------------
+insert into auth.users (id, email) values
+  ('00000000-0000-0000-0000-00000000000a', 'alice@example.com'),
+  ('00000000-0000-0000-0000-00000000000b', 'bob@example.com')
+on conflict (id) do nothing;
+
+-- Trigger should have created profiles and seeded categories.
+do $$
+declare
+  alice_categories int;
+  alice_profile    int;
+begin
+  select count(*) into alice_profile
+  from public.profiles where id = '00000000-0000-0000-0000-00000000000a';
+  if alice_profile <> 1 then
+    raise exception 'FAIL: profile not auto-created (got %)', alice_profile;
+  end if;
+
+  select count(*) into alice_categories
+  from public.categories where user_id = '00000000-0000-0000-0000-00000000000a';
+  if alice_categories <> 19 then
+    raise exception 'FAIL: expected 19 seeded categories, got %', alice_categories;
+  end if;
+end $$;
+
+-- Seed accounts directly as superuser (bypasses RLS for setup) ---------------
+insert into public.accounts (id, user_id, name, type) values
+  ('10000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000000000a', 'Alice Cash', 'cash'),
+  ('10000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000000b', 'Bob Cash',   'cash');
+
+-- ---------------------------------------------------------------------------
+-- Helper: run a block as a given authenticated user.
+-- ---------------------------------------------------------------------------
+create or replace function public.test_as_user(p_user uuid)
+returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claim.sub', p_user::text, true);
+end $$;
+
+-- ===========================================================================
+-- 1. Alice can see only her own accounts.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare visible int;
+  begin
+    select count(*) into visible from public.accounts;
+    if visible <> 1 then
+      raise exception 'FAIL: Alice sees % accounts, expected 1', visible;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 2. Alice cannot insert an account owned by Bob (RLS WITH CHECK).
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  begin
+    insert into public.accounts (user_id, name)
+    values ('00000000-0000-0000-0000-00000000000b', 'Sneaky');
+    raise exception 'FAIL: Alice was allowed to insert an account for Bob';
+  exception
+    when insufficient_privilege then null; -- expected: RLS rejected it
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 3. Alice cannot insert a transaction referencing Bob's account, even though
+--    she sets user_id = herself. This is the composite-FK guarantee.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare alice_cat uuid;
+  begin
+    select id into alice_cat
+    from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'expense'
+    limit 1;
+
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values (
+      '00000000-0000-0000-0000-00000000000a',
+      'expense', 10,
+      '10000000-0000-0000-0000-00000000000b', -- Bob's account
+      alice_cat
+    );
+    raise exception 'FAIL: cross-user account reference was allowed';
+  exception
+    when foreign_key_violation then null; -- expected
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 4. Transaction shape constraints.
+--    income requires a category; transfer forbids one and needs a destination.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    alice_cat  uuid;
+    alice_acct uuid := '10000000-0000-0000-0000-00000000000a';
+    alice_acct2 uuid;
+  begin
+    select id into alice_cat
+    from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'expense'
+    limit 1;
+
+    -- A second account for transfer destination.
+    insert into public.accounts (user_id, name, type)
+    values ('00000000-0000-0000-0000-00000000000a', 'Alice Savings', 'savings')
+    returning id into alice_acct2;
+
+    -- income without category -> rejected
+    begin
+      insert into public.transactions (user_id, type, amount, account_id)
+      values ('00000000-0000-0000-0000-00000000000a', 'income', 50, alice_acct);
+      raise exception 'FAIL: income without category allowed';
+    exception when check_violation then null; end;
+
+    -- transfer with a category -> rejected
+    begin
+      insert into public.transactions
+        (user_id, type, amount, account_id, transfer_account_id, category_id)
+      values
+        ('00000000-0000-0000-0000-00000000000a', 'transfer', 50,
+         alice_acct, alice_acct2, alice_cat);
+      raise exception 'FAIL: transfer with category allowed';
+    exception when check_violation then null; end;
+
+    -- transfer to the same account -> rejected
+    begin
+      insert into public.transactions
+        (user_id, type, amount, account_id, transfer_account_id)
+      values
+        ('00000000-0000-0000-0000-00000000000a', 'transfer', 50,
+         alice_acct, alice_acct);
+      raise exception 'FAIL: self-transfer allowed';
+    exception when check_violation then null; end;
+
+    -- zero/negative amount -> rejected
+    begin
+      insert into public.transactions (user_id, type, amount, account_id, category_id)
+      values ('00000000-0000-0000-0000-00000000000a', 'expense', 0, alice_acct, alice_cat);
+      raise exception 'FAIL: zero amount allowed';
+    exception when check_violation then null; end;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 5. Expense transaction cannot use an income category (trigger).
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    income_cat uuid;
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+  begin
+    select id into income_cat
+    from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'income'
+    limit 1;
+
+    begin
+      insert into public.transactions (user_id, type, amount, account_id, category_id)
+      values ('00000000-0000-0000-0000-00000000000a', 'expense', 10, acct, income_cat);
+      raise exception 'FAIL: expense accepted an income category';
+    exception when check_violation then null; end;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 6. A valid expense and a valid transfer both succeed, and balances derive.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    expense_cat uuid;
+    acct        uuid := '10000000-0000-0000-0000-00000000000a';
+    acct2       uuid;
+    bal         numeric;
+  begin
+    select id into expense_cat
+    from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'expense'
+    limit 1;
+
+    insert into public.accounts (user_id, name, type)
+    values ('00000000-0000-0000-0000-00000000000a', 'Alice Savings', 'savings')
+    returning id into acct2;
+
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'income', 1000, acct, (
+      select id from public.categories
+      where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'income' limit 1
+    ));
+
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'expense', 250, acct, expense_cat);
+
+    insert into public.transactions
+      (user_id, type, amount, account_id, transfer_account_id)
+    values
+      ('00000000-0000-0000-0000-00000000000a', 'transfer', 300, acct, acct2);
+
+    -- Derived balance for the main account: +1000 income - 250 expense - 300 transfer out
+    select a.opening_balance
+      + coalesce(sum(case
+          when t.type = 'income'   then t.amount
+          when t.type = 'expense'  then -t.amount
+          when t.type = 'transfer' and t.account_id = a.id          then -t.amount
+          when t.type = 'transfer' and t.transfer_account_id = a.id then t.amount
+          else 0 end), 0)
+    into bal
+    from public.accounts a
+    left join public.transactions t
+      on t.account_id = a.id or t.transfer_account_id = a.id
+    where a.id = acct
+    group by a.id, a.opening_balance;
+
+    if bal <> 450 then
+      raise exception 'FAIL: derived balance expected 450, got %', bal;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 6b. account_balances view must respect RLS (security_invoker).
+--     Alice must see exactly one balance row, never Bob's.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare visible int; wrong_user int;
+  begin
+    select count(*) into visible from public.account_balances;
+    if visible <> 1 then
+      raise exception 'FAIL: account_balances leaked % rows to Alice (expected 1)', visible;
+    end if;
+
+    select count(*) into wrong_user
+    from public.account_balances
+    where user_id <> '00000000-0000-0000-0000-00000000000a';
+    if wrong_user <> 0 then
+      raise exception 'FAIL: account_balances exposed another user''s rows';
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 6c. account_balances view computes the correct arithmetic.
+--     Opening 100 + income 1000 - expense 250 - transfer out 300 = 550.
+--     The destination account: opening 0 + transfer in 300 = 300.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    acct2 uuid;
+    cat uuid;
+    src_bal numeric;
+    dst_bal numeric;
+  begin
+    select id into cat from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'expense' limit 1;
+
+    update public.accounts set opening_balance = 100 where id = acct;
+
+    insert into public.accounts (user_id, name, type)
+    values ('00000000-0000-0000-0000-00000000000a', 'Alice Savings', 'savings')
+    returning id into acct2;
+
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'income', 1000, acct, (
+      select id from public.categories
+      where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'income' limit 1
+    ));
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'expense', 250, acct, cat);
+    insert into public.transactions
+      (user_id, type, amount, account_id, transfer_account_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'transfer', 300, acct, acct2);
+
+    select current_balance into src_bal from public.account_balances where account_id = acct;
+    select current_balance into dst_bal from public.account_balances where account_id = acct2;
+
+    if src_bal <> 550 then
+      raise exception 'FAIL: source balance expected 550, got %', src_bal;
+    end if;
+    if dst_bal <> 300 then
+      raise exception 'FAIL: destination balance expected 300, got %', dst_bal;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 9. transaction_details view: joins names and respects RLS.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    acct2 uuid;
+    cat uuid;
+    row_count int;
+    acct_name text;
+    transfer_name text;
+    cat_name text;
+  begin
+    select id into cat from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'expense' limit 1;
+
+    insert into public.accounts (user_id, name, type)
+    values ('00000000-0000-0000-0000-00000000000a', 'A Savings', 'savings')
+    returning id into acct2;
+
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'expense', 25, acct, cat);
+
+    insert into public.transactions
+      (user_id, type, amount, account_id, transfer_account_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'transfer', 300, acct, acct2);
+
+    select count(*) into row_count from public.transaction_details;
+    if row_count <> 2 then
+      raise exception 'FAIL: transaction_details returned % rows, expected 2', row_count;
+    end if;
+
+    select account_name, category_name into acct_name, cat_name
+    from public.transaction_details where type = 'expense';
+    if acct_name is null or cat_name is null then
+      raise exception 'FAIL: expense row missing joined names';
+    end if;
+
+    select transfer_account_name into transfer_name
+    from public.transaction_details where type = 'transfer';
+    if transfer_name <> 'A Savings' then
+      raise exception 'FAIL: transfer destination name wrong (got %)', transfer_name;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 10. transaction_details must not leak another user's rows.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare leaked int;
+  begin
+    select count(*) into leaked from public.transaction_details
+    where user_id <> '00000000-0000-0000-0000-00000000000a';
+    if leaked <> 0 then
+      raise exception 'FAIL: transaction_details leaked % rows', leaked;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 11. get_transaction_totals: correct sums, and transfers are NOT expenses.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    acct2 uuid;
+    expense_cat uuid;
+    income_cat uuid;
+    inc numeric; exp numeric; trf numeric;
+  begin
+    select id into expense_cat from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'expense' limit 1;
+    select id into income_cat from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'income' limit 1;
+
+    insert into public.accounts (user_id, name, type)
+    values ('00000000-0000-0000-0000-00000000000a', 'A Savings', 'savings')
+    returning id into acct2;
+
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values
+      ('00000000-0000-0000-0000-00000000000a', 'income', 1000, acct, income_cat),
+      ('00000000-0000-0000-0000-00000000000a', 'expense', 250, acct, expense_cat),
+      ('00000000-0000-0000-0000-00000000000a', 'expense', 50, acct, expense_cat);
+
+    insert into public.transactions
+      (user_id, type, amount, account_id, transfer_account_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'transfer', 300, acct, acct2);
+
+    select income_total, expense_total, transfer_total into inc, exp, trf
+    from public.get_transaction_totals();
+
+    if inc <> 1000 then raise exception 'FAIL: income total % (expected 1000)', inc; end if;
+    if exp <> 300  then raise exception 'FAIL: expense total % (expected 300)', exp; end if;
+    if trf <> 300  then raise exception 'FAIL: transfer total % (expected 300)', trf; end if;
+
+    -- Filtering to expenses must exclude the transfer and the income.
+    select income_total, expense_total, transfer_total into inc, exp, trf
+    from public.get_transaction_totals(p_type => 'expense');
+    if inc <> 0 then raise exception 'FAIL: type filter leaked income'; end if;
+    if exp <> 300 then raise exception 'FAIL: filtered expense total % (expected 300)', exp; end if;
+    if trf <> 0 then raise exception 'FAIL: type filter leaked transfers into total'; end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 12. get_transaction_totals respects RLS (cannot see other users' rows).
+-- ===========================================================================
+begin;
+  -- Superuser setup: give Bob a large income that Alice must never see.
+  do $$
+  declare
+    bob_acct uuid := '10000000-0000-0000-0000-00000000000b';
+    bob_cat uuid;
+  begin
+    select id into bob_cat from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000b' and kind = 'income' limit 1;
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values ('00000000-0000-0000-0000-00000000000b', 'income', 999, bob_acct, bob_cat);
+  end $$;
+
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare inc numeric;
+  begin
+    select income_total into inc from public.get_transaction_totals();
+    if inc is distinct from 0 then
+      raise exception 'FAIL: totals leaked another user''s income (%)', inc;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 13. Dashboard functions: monthly summary excludes transfers from savings.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    acct2 uuid;
+    ecat uuid; icat uuid;
+    row_income numeric; row_expense numeric; row_savings numeric; row_transfer numeric;
+  begin
+    select id into ecat from public.categories where user_id=uid and kind='expense' limit 1;
+    select id into icat from public.categories where user_id=uid and kind='income' limit 1;
+
+    insert into public.accounts (user_id, name, type)
+    values (uid, 'A Savings', 'savings') returning id into acct2;
+
+    insert into public.transactions (user_id,type,amount,account_id,category_id,occurred_on) values
+      (uid,'income',2000,acct,icat,current_date),
+      (uid,'expense',500,acct,ecat,current_date);
+    insert into public.transactions (user_id,type,amount,account_id,transfer_account_id,occurred_on)
+    values (uid,'transfer',700,acct,acct2,current_date);
+
+    select income, expense, transfer, savings
+      into row_income, row_expense, row_transfer, row_savings
+    from public.get_monthly_summary(1);
+
+    if row_income <> 2000 then raise exception 'FAIL: month income % (expected 2000)', row_income; end if;
+    if row_expense <> 500 then raise exception 'FAIL: month expense % (expected 500)', row_expense; end if;
+    if row_transfer <> 700 then raise exception 'FAIL: month transfer % (expected 700)', row_transfer; end if;
+    -- Savings = income - expense = 1500. The 700 transfer must NOT reduce it.
+    if row_savings <> 1500 then raise exception 'FAIL: savings % (expected 1500, transfer leaked?)', row_savings; end if;
+
+    if (select coalesce(sum(total),0) from public.get_spending_by_category()) <> 500 then
+      raise exception 'FAIL: spending_by_category included non-expenses';
+    end if;
+
+    if public.get_net_worth() is null then raise exception 'FAIL: net worth is null'; end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 14. Dashboard functions must not leak another user's data.
+-- ===========================================================================
+begin;
+  do $$
+  declare bob uuid := '00000000-0000-0000-0000-00000000000b';
+  begin
+    insert into public.transactions (user_id,type,amount,account_id,category_id,occurred_on)
+    select bob,'income',999999,'10000000-0000-0000-0000-00000000000b', c.id, current_date
+    from public.categories c where c.user_id=bob and c.kind='income' limit 1;
+  end $$;
+
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare inc numeric;
+  begin
+    select coalesce(sum(income),0) into inc from public.get_monthly_summary(1);
+    if inc <> 0 then raise exception 'FAIL: monthly summary leaked income (%)', inc; end if;
+    if exists (select 1 from public.get_spending_by_category() where total > 0) then
+      raise exception 'FAIL: spending leaked another user';
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 15. Budgets: RLS, expense-only trigger, status math, transfer exclusion.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    acct2 uuid;
+    ecat uuid; icat uuid;
+    bid uuid;
+    item_budgeted numeric; item_spent numeric; item_remaining numeric; item_pct numeric;
+  begin
+    select id into ecat from public.categories where user_id=uid and kind='expense' limit 1;
+    select id into icat from public.categories where user_id=uid and kind='income' limit 1;
+    insert into public.accounts (user_id, name, type)
+      values (uid, 'A Savings', 'savings') returning id into acct2;
+
+    insert into public.budgets (user_id, period_month)
+      values (uid, date_trunc('month', current_date)::date) returning id into bid;
+
+    insert into public.budget_items (budget_id, user_id, category_id, amount)
+      values (bid, uid, ecat, 1000);
+
+    -- Spending: an expense of 250 and a transfer of 700 (must not count).
+    insert into public.transactions (user_id,type,amount,account_id,category_id,occurred_on)
+      values (uid,'expense',250,acct,ecat,current_date);
+    insert into public.transactions (user_id,type,amount,account_id,transfer_account_id,occurred_on)
+      values (uid,'transfer',700,acct,acct2,current_date);
+
+    select budgeted, spent, remaining, percent_used
+      into item_budgeted, item_spent, item_remaining, item_pct
+    from public.get_budget_status(date_trunc('month', current_date)::date)
+    where category_id = ecat;
+
+    if item_budgeted <> 1000 then raise exception 'FAIL: budgeted % (expected 1000)', item_budgeted; end if;
+    if item_spent <> 250 then raise exception 'FAIL: spent % (expected 250, transfer leaked?)', item_spent; end if;
+    if item_remaining <> 750 then raise exception 'FAIL: remaining % (expected 750)', item_remaining; end if;
+    if item_pct <> 25 then raise exception 'FAIL: percent % (expected 25)', item_pct; end if;
+
+    -- A budget item on an income category must be rejected.
+    begin
+      insert into public.budget_items (budget_id, user_id, category_id, amount)
+        values (bid, uid, icat, 500);
+      raise exception 'FAIL: budget item accepted an income category';
+    exception when check_violation then null; end;
+
+    -- A second budget for the same month is rejected.
+    begin
+      insert into public.budgets (user_id, period_month)
+        values (uid, date_trunc('month', current_date)::date);
+      raise exception 'FAIL: duplicate monthly budget allowed';
+    exception when unique_violation then null; end;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 16. Budgets must not leak across users, and copy_budget is idempotent.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    bid uuid; item uuid; visible int;
+    copy1 uuid; copy2 uuid;
+  begin
+    select id into item from public.categories where user_id=uid and kind='expense' limit 1;
+    insert into public.budgets (user_id, period_month)
+      values (uid, date_trunc('month', current_date)::date) returning id into bid;
+    insert into public.budget_items (budget_id, user_id, category_id, amount)
+      values (bid, uid, item, 300);
+
+    -- Must not see Bob's budget items (Bob has none in this rolled-back test).
+    select count(*) into visible from public.budget_items
+      where user_id <> uid;
+    if visible <> 0 then raise exception 'FAIL: budget_items leaked % rows', visible; end if;
+
+    -- copy_budget into next month, twice; second call returns the same id.
+    copy1 := public.copy_budget(
+      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '1 month')::date
+    );
+    copy2 := public.copy_budget(
+      date_trunc('month', current_date)::date,
+      (date_trunc('month', current_date) + interval '1 month')::date
+    );
+    if copy1 <> copy2 then raise exception 'FAIL: copy_budget not idempotent'; end if;
+    if (select count(*) from public.budget_items where budget_id = copy1) <> 1 then
+      raise exception 'FAIL: copied budget missing items';
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 7. Deleting an account that has transactions must be blocked (RESTRICT).
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    cat uuid;
+  begin
+    select id into cat from public.categories
+    where user_id = '00000000-0000-0000-0000-00000000000a' and kind = 'expense' limit 1;
+
+    insert into public.transactions (user_id, type, amount, account_id, category_id)
+    values ('00000000-0000-0000-0000-00000000000a', 'expense', 5, acct, cat);
+
+    begin
+      delete from public.accounts where id = acct;
+      raise exception 'FAIL: deleted an account that still has transactions';
+    exception when foreign_key_violation then null; end;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 8. Deleting an auth user cascades to their financial data.
+-- ===========================================================================
+do $$
+declare remaining int;
+begin
+  delete from auth.users where id = '00000000-0000-0000-0000-00000000000b';
+  select count(*) into remaining
+  from public.accounts where user_id = '00000000-0000-0000-0000-00000000000b';
+  if remaining <> 0 then
+    raise exception 'FAIL: cascade delete left % accounts', remaining;
+  end if;
+end $$;
+
+\echo 'ALL RLS/INTEGRITY TESTS PASSED'

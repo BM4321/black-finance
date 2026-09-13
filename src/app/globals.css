@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens.
+ *
+ * Kept as CSS variables so a single source of truth drives both Tailwind
+ * utilities and plain CSS. Semantic names (surface, muted, positive) rather
+ * than literal colours, so a dark theme can be added later without touching
+ * every component.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f8fa;
+  --surface: #ffffff;
+  --surface-muted: #f1f3f6;
+  --border: #e3e6ea;
+  --foreground: #14171c;
+  --muted-foreground: #667085;
+  --primary: #1f6feb;
+  --primary-foreground: #ffffff;
+  --positive: #12805c;
+  --negative: #c0392b;
+  --warning: #b7791f;
+  --ring: #1f6feb;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
   --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular figures keep monetary columns visually aligned. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
