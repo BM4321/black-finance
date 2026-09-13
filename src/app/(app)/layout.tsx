@@ -1,12 +1,15 @@
 import Link from "next/link";
 
+import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { isAssistantConfigured } from "@/lib/ai/config";
 import { requireUser } from "@/lib/auth";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/transactions", label: "Transactions" },
   { href: "/accounts", label: "Accounts" },
+  { href: "/budgets", label: "Budgets" },
 ];
 
 /**
@@ -63,6 +66,9 @@ export default async function AppLayout({
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
         {children}
       </main>
+
+      {/* Floating assistant is available on every authenticated page. */}
+      <AssistantLauncher configured={isAssistantConfigured()} />
     </div>
   );
 }
