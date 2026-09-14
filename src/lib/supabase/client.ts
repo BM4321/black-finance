@@ -1,6 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-import { publicEnv } from "@/lib/env";
+import { getPublicEnv } from "@/lib/env";
 import type { Database } from "@/types/database";
 
 /**
@@ -11,8 +11,10 @@ import type { Database } from "@/types/database";
  * @supabase/ssr handles singleton behaviour internally.
  */
 export function createClient() {
+  const env = getPublicEnv();
+
   return createBrowserClient<Database>(
-    publicEnv.NEXT_PUBLIC_SUPABASE_URL,
-    publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
 }

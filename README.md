@@ -1,37 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Black Finance
+
+A personal finance management app: accounts, transactions, budgets, a
+dashboard, and a Gemini-powered assistant grounded in your own data.
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies and configure the environment:
 
 ```bash
+npm install
+cp .env.example .env.local   # then fill in the values
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Supabase anon / publishable key (safe; protected by RLS) |
+| `GEMINI_API_KEY` | **Server only** | Google AI Studio key for the assistant |
+| `GEMINI_MODEL` | Server only | Optional model override (defaults to `gemini-3.6-flash`) |
 
-## Learn More
+`.env.local` is gitignored and is **not** available during a Vercel build.
 
-To learn more about Next.js, take a look at the following resources:
+## Deploying to Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The build does not require secrets, but the running app does. Set the
+variables in the Vercel dashboard — `.env.local` never reaches Vercel.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push the repo to GitHub and import it at [vercel.com/new](https://vercel.com/new).
+2. In the project: **Settings → Environment Variables**, add each variable below
+   for **Production**, **Preview** and **Development**:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `GEMINI_API_KEY` (only if you want the assistant enabled)
+3. **Redeploy.** Vercel only applies environment variables to deployments made
+   after they are added; existing deployments keep the old environment.
+4. In Supabase: **Authentication → URL Configuration**, add your Vercel domain
+   (e.g. `https://your-app.vercel.app`) to **Site URL** and **Redirect URLs**,
+   otherwise auth redirects will fail in production.
 
-## Deploy on Vercel
+### If the build fails with "Invalid public environment configuration"
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+That error means the app tried to use Supabase without a URL/key. On Vercel
+this is almost always one of:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# black-finance
+- The variables were added **after** the deployment — redeploy.
+- They were added for a different environment than the one building
+  (e.g. added to Production but the deploy is a Preview).
+- A name is misspelled, or the value is empty/whitespace.
+
+## Commands
+
+```bash
+npm run dev        # development server
+npm run build      # production build
+npm run start      # run the production build
+npm run lint       # eslint
+npm run typecheck  # tsc --noEmit
+npm test           # vitest
+```
+
+## Database
+
+Migrations live in `supabase/migrations/`. See `supabase/README.md` for how to
+apply them and how to run the Row Level Security test suite.
