@@ -18,15 +18,24 @@ export type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Budget = Database["public"]["Tables"]["budgets"]["Row"];
 export type BudgetItem = Database["public"]["Tables"]["budget_items"]["Row"];
+export type Goal = Database["public"]["Tables"]["goals"]["Row"];
+export type GoalProgress =
+  Database["public"]["Views"]["goal_progress"]["Row"];
+export type GoalContribution =
+  Database["public"]["Tables"]["goal_contributions"]["Row"];
 
 export type NewAccount = Database["public"]["Tables"]["accounts"]["Insert"];
 export type NewCategory = Database["public"]["Tables"]["categories"]["Insert"];
 export type NewTransaction = Database["public"]["Tables"]["transactions"]["Insert"];
+export type NewGoal = Database["public"]["Tables"]["goals"]["Insert"];
+export type NewGoalContribution =
+  Database["public"]["Tables"]["goal_contributions"]["Insert"];
 
 export type AccountUpdate = Database["public"]["Tables"]["accounts"]["Update"];
 export type CategoryUpdate = Database["public"]["Tables"]["categories"]["Update"];
 export type TransactionUpdate =
   Database["public"]["Tables"]["transactions"]["Update"];
+export type GoalUpdate = Database["public"]["Tables"]["goals"]["Update"];
 
 export const ACCOUNT_TYPES: readonly AccountType[] = [
   "cash",

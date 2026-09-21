@@ -1,7 +1,7 @@
 # Black Finance
 
-A personal finance management app: accounts, transactions, budgets, a
-dashboard, and a Gemini-powered assistant grounded in your own data.
+A personal finance management app: accounts, transactions, budgets, savings
+goals, a dashboard, and a Gemini-powered assistant grounded in your own data.
 
 ## Getting Started
 

@@ -8,9 +8,15 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { TransactionList } from "@/components/transactions/transaction-list";
 import { Card } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
-import { getNetWorth, getMonthlySummary, getSpendingByCategory } from "@/lib/data/dashboard";
+import {
+  getBalanceBreakdown,
+  getMonthlySummary,
+  getSpendingByCategory,
+} from "@/lib/data/dashboard";
+import { listGoals } from "@/lib/data/goals";
 import { getTransactions } from "@/lib/data/transactions";
 import { calculateSavingsRate, formatSavingsRate } from "@/lib/finance/health";
+import { goalProgressWidth } from "@/lib/finance/goals";
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,11 +38,12 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { from, to } = currentMonthRange();
 
-  const [netWorth, monthly, spending, recent] = await Promise.all([
-    getNetWorth(supabase),
+  const [balances, monthly, spending, recent, goals] = await Promise.all([
+    getBalanceBreakdown(supabase),
     getMonthlySummary(supabase, 6),
     getSpendingByCategory(supabase, from, to),
     getTransactions(supabase, { page: 1 }),
+    listGoals(supabase),
   ]);
 
   // This month is the last bucket in the ordered series.
@@ -64,11 +71,24 @@ export default async function DashboardPage() {
       </div>
 
       {/* Headline numbers -------------------------------------------------- */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Balances first: spendable and savings are shown separately so money
+          set aside in savings accounts is never mixed into everyday cash. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
-          label="Total balance"
-          value={formatMoney(netWorth)}
-          hint="Across active accounts"
+          label="Spendable balance"
+          value={formatMoney(balances.spendable)}
+          hint="Cash, bank, mobile money & other"
+        />
+        <StatCard
+          label="In savings accounts"
+          value={formatMoney(balances.savings)}
+          hint="Set aside, not counted as spendable"
+          tone="positive"
+        />
+        <StatCard
+          label="Net worth"
+          value={formatMoney(balances.netWorth)}
+          hint="Spendable + savings"
         />
         <StatCard
           label="Income this month"
@@ -125,6 +145,46 @@ export default async function DashboardPage() {
         </div>
         <TransactionList transactions={recent.transactions.slice(0, 6)} />
       </Card>
+
+      {/* Goals ------------------------------------------------------------ */}
+      {goals.active.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 className="text-sm font-semibold">Goal progress</h2>
+            <Link href="/goals" className="text-xs font-medium text-primary">
+              View all
+            </Link>
+          </div>
+          <ul className="divide-y divide-border">
+            {goals.active.slice(0, 3).map((goal) => (
+              <li key={goal.id} className="px-4 py-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <Link
+                    href={`/goals/${goal.id}`}
+                    className="min-w-0 truncate text-sm font-medium hover:text-primary"
+                  >
+                    {goal.name}
+                  </Link>
+                  <span className="tabular-nums text-sm font-semibold">
+                    {formatMoney(goal.current_amount)}{" "}
+                    <span className="font-normal text-muted-foreground">
+                      / {formatMoney(goal.target_amount)}
+                    </span>
+                  </span>
+                </div>
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{
+                      width: `${goalProgressWidth(goal.percent_complete)}%`,
+                    }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }

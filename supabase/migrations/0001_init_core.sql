@@ -24,18 +24,26 @@ create extension if not exists "pgcrypto"; -- gen_random_uuid()
 -- Postgres enums give us a constrained, self-documenting value set and prevent
 -- typos at the database level (not just in TypeScript).
 -- ---------------------------------------------------------------------------
-create type public.account_type as enum (
-  'cash',
-  'bank',
-  'savings',
-  'mobile_money',
-  'investment',
-  'other'
-);
+-- Wrapped in DO blocks so re-running the file is safe: `create type` has no
+-- `if not exists`, but a duplicate_object can simply be ignored.
+do $$ begin
+  create type public.account_type as enum (
+    'cash',
+    'bank',
+    'savings',
+    'mobile_money',
+    'investment',
+    'other'
+  );
+exception when duplicate_object then null; end $$;
 
-create type public.category_kind as enum ('income', 'expense');
+do $$ begin
+  create type public.category_kind as enum ('income', 'expense');
+exception when duplicate_object then null; end $$;
 
-create type public.transaction_type as enum ('income', 'expense', 'transfer');
+do $$ begin
+  create type public.transaction_type as enum ('income', 'expense', 'transfer');
+exception when duplicate_object then null; end $$;
 
 -- ---------------------------------------------------------------------------
 -- profiles
@@ -44,7 +52,7 @@ create type public.transaction_type as enum ('income', 'expense', 'transfer');
 -- duplicate the email here (it lives in auth.users); this holds app-specific
 -- preferences.
 -- ---------------------------------------------------------------------------
-create table public.profiles (
+create table if not exists public.profiles (
   id           uuid primary key references auth.users (id) on delete cascade,
   display_name text,
   currency     char(3) not null default 'TZS',
@@ -62,7 +70,7 @@ create table public.profiles (
 -- UNIQUE(id, user_id) is not redundant: it is the target of the composite
 -- foreign keys below that guarantee cross-user references are impossible.
 -- ---------------------------------------------------------------------------
-create table public.accounts (
+create table if not exists public.accounts (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null references auth.users (id) on delete cascade,
   name            text not null check (length(trim(name)) between 1 and 80),
@@ -77,11 +85,11 @@ create table public.accounts (
   unique (id, user_id)
 );
 
-create index accounts_user_id_idx on public.accounts (user_id);
+create index if not exists accounts_user_id_idx on public.accounts (user_id);
 
 -- A user cannot have two *active* accounts with the same name. Archived
 -- accounts are exempt, so a name can be reused after archiving.
-create unique index accounts_user_name_active_idx
+create unique index if not exists accounts_user_name_active_idx
   on public.accounts (user_id, name)
   where not is_archived;
 
@@ -92,7 +100,7 @@ create unique index accounts_user_name_active_idx
 -- every category has a real owner. This keeps RLS and the composite-FK
 -- ownership model uniform (no special-cased NULL user_id rows).
 -- ---------------------------------------------------------------------------
-create table public.categories (
+create table if not exists public.categories (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references auth.users (id) on delete cascade,
   name       text not null check (length(trim(name)) between 1 and 60),
@@ -106,11 +114,11 @@ create table public.categories (
   unique (id, user_id)
 );
 
-create index categories_user_id_idx on public.categories (user_id);
-create index categories_user_kind_idx on public.categories (user_id, kind);
+create index if not exists categories_user_id_idx on public.categories (user_id);
+create index if not exists categories_user_kind_idx on public.categories (user_id, kind);
 
 -- Names are unique per kind among active categories; archived ones are exempt.
-create unique index categories_user_name_kind_active_idx
+create unique index if not exists categories_user_name_kind_active_idx
   on public.categories (user_id, name, kind)
   where not is_archived;
 
@@ -133,7 +141,7 @@ create unique index categories_user_name_kind_active_idx
 -- `occurred_on` is a DATE, not a timestamp: a transaction happens on a
 -- calendar day, and storing an instant invites timezone drift.
 -- ---------------------------------------------------------------------------
-create table public.transactions (
+create table if not exists public.transactions (
   id                  uuid primary key default gen_random_uuid(),
   user_id             uuid not null references auth.users (id) on delete cascade,
   type                public.transaction_type not null,
@@ -175,14 +183,14 @@ create table public.transactions (
   )
 );
 
-create index transactions_user_occurred_idx
+create index if not exists transactions_user_occurred_idx
   on public.transactions (user_id, occurred_on desc, created_at desc);
-create index transactions_user_account_idx
+create index if not exists transactions_user_account_idx
   on public.transactions (user_id, account_id);
-create index transactions_transfer_account_idx
+create index if not exists transactions_transfer_account_idx
   on public.transactions (transfer_account_id)
   where transfer_account_id is not null;
-create index transactions_user_category_idx
+create index if not exists transactions_user_category_idx
   on public.transactions (user_id, category_id)
   where category_id is not null;
 
@@ -199,18 +207,22 @@ begin
 end;
 $$;
 
+drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at
   before update on public.profiles
   for each row execute function public.set_updated_at();
 
+drop trigger if exists accounts_set_updated_at on public.accounts;
 create trigger accounts_set_updated_at
   before update on public.accounts
   for each row execute function public.set_updated_at();
 
+drop trigger if exists categories_set_updated_at on public.categories;
 create trigger categories_set_updated_at
   before update on public.categories
   for each row execute function public.set_updated_at();
 
+drop trigger if exists transactions_set_updated_at on public.transactions;
 create trigger transactions_set_updated_at
   before update on public.transactions
   for each row execute function public.set_updated_at();
@@ -253,6 +265,7 @@ begin
 end;
 $$;
 
+drop trigger if exists transactions_enforce_category_kind on public.transactions;
 create trigger transactions_enforce_category_kind
   before insert or update on public.transactions
   for each row execute function public.enforce_transaction_category_kind();

@@ -631,6 +631,257 @@ begin;
 rollback;
 
 -- ===========================================================================
+-- 17. Goals: progress derives from contributions, RLS isolates users, and a
+--     contribution cannot reference another user's goal.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    gid uuid;
+    cur numeric; rem numeric; pct numeric;
+    visible int;
+  begin
+    insert into public.goals (user_id, name, target_amount, target_date)
+      values (uid, 'Driving lessons', 300000, current_date + 90)
+      returning id into gid;
+
+    insert into public.goal_contributions (goal_id, user_id, amount)
+      values (gid, uid, 70000), (gid, uid, 50000);
+
+    select current_amount, remaining, percent_complete
+      into cur, rem, pct
+    from public.goal_progress where id = gid;
+
+    if cur <> 120000 then raise exception 'FAIL: goal current % (expected 120000)', cur; end if;
+    if rem <> 180000 then raise exception 'FAIL: goal remaining % (expected 180000)', rem; end if;
+    if pct <> 40 then raise exception 'FAIL: goal percent % (expected 40)', pct; end if;
+
+    -- Goals and contributions must not leak across users.
+    select count(*) into visible from public.goal_progress where user_id <> uid;
+    if visible <> 0 then raise exception 'FAIL: goal_progress leaked % rows', visible; end if;
+    select count(*) into visible from public.goal_contributions where user_id <> uid;
+    if visible <> 0 then raise exception 'FAIL: goal_contributions leaked % rows', visible; end if;
+
+    -- A contribution must be positive.
+    begin
+      insert into public.goal_contributions (goal_id, user_id, amount)
+        values (gid, uid, 0);
+      raise exception 'FAIL: zero goal contribution allowed';
+    exception when check_violation then null; end;
+
+    -- A goal must be positive too.
+    begin
+      insert into public.goals (user_id, name, target_amount)
+        values (uid, 'Nonsense', 0);
+      raise exception 'FAIL: zero target goal allowed';
+    exception when check_violation then null; end;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 18. A goal contribution cannot reference another user's goal (composite FK).
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare bob_goal uuid;
+  begin
+    -- Create a goal owned by Bob, as Bob.
+    perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000b', true);
+    insert into public.goals (user_id, name, target_amount)
+      values ('00000000-0000-0000-0000-00000000000b', 'Bob goal', 1000)
+      returning id into bob_goal;
+
+    -- As Alice, try to contribute to Bob's goal while claiming ownership.
+    perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000000a', true);
+    begin
+      insert into public.goal_contributions (goal_id, user_id, amount)
+        values (bob_goal, '00000000-0000-0000-0000-00000000000a', 500);
+      raise exception 'FAIL: cross-user goal contribution was allowed';
+    exception when foreign_key_violation then null; end;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 19. Deleting a goal cascades to its contributions.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    gid uuid; remaining int;
+  begin
+    insert into public.goals (user_id, name, target_amount)
+      values (uid, 'Temp goal', 5000) returning id into gid;
+    insert into public.goal_contributions (goal_id, user_id, amount)
+      values (gid, uid, 1000);
+
+    delete from public.goals where id = gid;
+
+    select count(*) into remaining
+    from public.goal_contributions where goal_id = gid;
+    if remaining <> 0 then
+      raise exception 'FAIL: goal delete left % contributions', remaining;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 20. Search consistency: normalize_search_term maps `*` to `%` (PostgREST's
+--     ilike wildcard) and strips structural quotes/backslashes, so the totals
+--     RPC and the list filter agree on what a search term means.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    ecat uuid;
+    normalized text;
+    matched int;
+  begin
+    select id into ecat from public.categories where user_id=uid and kind='expense' limit 1;
+
+    insert into public.transactions (user_id,type,amount,account_id,category_id,description)
+      values
+        (uid,'expense',100,acct,ecat,'coffee shop'),
+        (uid,'expense',200,acct,ecat,'50% off shoes');
+
+    -- `*` is a wildcard, exactly as PostgREST's ilike treats it.
+    normalized := public.normalize_search_term('cof*ee');
+    if normalized <> 'cof%ee' then
+      raise exception 'FAIL: normalize_search_term returned % (expected cof%%ee)', normalized;
+    end if;
+
+    select count(*) into matched
+    from public.transactions
+    where description ilike '%' || public.normalize_search_term('cof*ee') || '%';
+    if matched <> 1 then
+      raise exception 'FAIL: star search matched % rows (expected 1)', matched;
+    end if;
+
+    -- Blank input normalises to null, meaning "no search constraint".
+    if public.normalize_search_term('   ') is not null then
+      raise exception 'FAIL: blank search did not normalise to null';
+    end if;
+
+    -- The totals RPC uses the same normaliser, so it must find the same row.
+    if (
+      select expense_total
+      from public.get_transaction_totals(p_search => 'cof*ee')
+    ) <> 100 then
+      raise exception 'FAIL: totals search disagrees with the list search';
+    end if;
+
+    -- A literal `%` stays a wildcard on both sides (native LIKE semantics).
+    select count(*) into matched
+    from public.transactions
+    where description ilike '%' || public.normalize_search_term('50%') || '%';
+    if matched <> 1 then
+      raise exception 'FAIL: percent search matched % rows (expected 1)', matched;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 21. Balance breakdown: savings accounts are separated from spendable, and
+--     net worth is exactly their sum. RLS still applies.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    cash uuid := '10000000-0000-0000-0000-00000000000a';
+    savings uuid;
+    spendable numeric; sav numeric; net numeric;
+  begin
+    -- Cash account with an opening balance of 100, plus a savings account.
+    update public.accounts set opening_balance = 100 where id = cash;
+    insert into public.accounts (user_id, name, type, opening_balance)
+      values (uid, 'A Savings Account', 'savings', 5000)
+      returning id into savings;
+
+    select b.spendable, b.savings, b.net_worth into spendable, sav, net
+    from public.get_balance_breakdown() b;
+
+    -- Cash 100 spendable; savings 5000; net worth 5100.
+    if spendable <> 100 then
+      raise exception 'FAIL: spendable % (expected 100; savings leaked in?)', spendable;
+    end if;
+    if sav <> 5000 then
+      raise exception 'FAIL: savings % (expected 5000)', sav;
+    end if;
+    if net <> 5100 then
+      raise exception 'FAIL: net worth % (expected 5100)', net;
+    end if;
+    if net <> spendable + sav then
+      raise exception 'FAIL: net worth is not spendable + savings';
+    end if;
+
+    -- get_net_worth must still report the same total (AI callers rely on it).
+    if public.get_net_worth() <> net then
+      raise exception 'FAIL: get_net_worth (%) disagrees with breakdown (%)',
+        public.get_net_worth(), net;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 22. An archived savings account is excluded from the breakdown.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    sav uuid;
+    savings_total numeric;
+  begin
+    insert into public.accounts (user_id, name, type, opening_balance, is_archived)
+      values (uid, 'Archived Savings', 'savings', 9999, true)
+      returning id into sav;
+
+    select b.savings into savings_total from public.get_balance_breakdown() b;
+    if savings_total <> 0 then
+      raise exception 'FAIL: archived savings counted in breakdown (%)', savings_total;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 23. The breakdown must not leak another user's savings.
+-- ===========================================================================
+begin;
+  do $$
+  begin
+    insert into public.accounts (user_id, name, type, opening_balance)
+      values ('00000000-0000-0000-0000-00000000000b', 'Bob Savings', 'savings', 888888);
+  end $$;
+
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare sav numeric;
+  begin
+    select b.savings into sav from public.get_balance_breakdown() b;
+    if sav <> 0 then
+      raise exception 'FAIL: breakdown leaked another user''s savings (%)', sav;
+    end if;
+  end $$;
+rollback;
+
+-- ===========================================================================
 -- 7. Deleting an account that has transactions must be blocked (RESTRICT).
 -- ===========================================================================
 begin;

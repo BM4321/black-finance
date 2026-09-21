@@ -1,6 +1,10 @@
 import { listAccounts } from "@/lib/data/accounts";
 import { getBudgetOverview, monthStart } from "@/lib/data/budgets";
-import { getMonthlySummary, getNetWorth, getSpendingByCategory } from "@/lib/data/dashboard";
+import {
+  getBalanceBreakdown,
+  getMonthlySummary,
+  getSpendingByCategory,
+} from "@/lib/data/dashboard";
 import { getTransactions } from "@/lib/data/transactions";
 
 import type { AiClient, ResolvedPeriod, RetrievalProvider, RetrievalSection } from "./types";
@@ -24,14 +28,16 @@ export const accountsProvider: RetrievalProvider = {
   id: "accounts",
   async run(supabase: AiClient): Promise<RetrievalSection> {
     const accounts = await listAccounts(supabase);
-    const netWorth = await getNetWorth(supabase);
+    const balances = await getBalanceBreakdown(supabase);
 
     return {
       id: "accounts",
       title: "Accounts",
       source: { label: "accounts", count: accounts.length },
       data: {
-        netWorth,
+        spendable: balances.spendable,
+        savings: balances.savings,
+        netWorth: balances.netWorth,
         currency: "TZS",
         accounts: accounts.map((account) => ({
           name: account.name,

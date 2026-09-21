@@ -23,10 +23,12 @@ alter table public.transactions enable row level security;
 --   Users may read/update their own profile. Inserts happen via trigger, and
 --   deletes cascade from auth.users, so no insert/delete policy is needed.
 -- ---------------------------------------------------------------------------
+drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
   on public.profiles for select
   using (id = auth.uid());
 
+drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own"
   on public.profiles for update
   using (id = auth.uid())
@@ -35,19 +37,23 @@ create policy "profiles_update_own"
 -- ---------------------------------------------------------------------------
 -- accounts
 -- ---------------------------------------------------------------------------
+drop policy if exists "accounts_select_own" on public.accounts;
 create policy "accounts_select_own"
   on public.accounts for select
   using (user_id = auth.uid());
 
+drop policy if exists "accounts_insert_own" on public.accounts;
 create policy "accounts_insert_own"
   on public.accounts for insert
   with check (user_id = auth.uid());
 
+drop policy if exists "accounts_update_own" on public.accounts;
 create policy "accounts_update_own"
   on public.accounts for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+drop policy if exists "accounts_delete_own" on public.accounts;
 create policy "accounts_delete_own"
   on public.accounts for delete
   using (user_id = auth.uid());
@@ -55,19 +61,23 @@ create policy "accounts_delete_own"
 -- ---------------------------------------------------------------------------
 -- categories
 -- ---------------------------------------------------------------------------
+drop policy if exists "categories_select_own" on public.categories;
 create policy "categories_select_own"
   on public.categories for select
   using (user_id = auth.uid());
 
+drop policy if exists "categories_insert_own" on public.categories;
 create policy "categories_insert_own"
   on public.categories for insert
   with check (user_id = auth.uid());
 
+drop policy if exists "categories_update_own" on public.categories;
 create policy "categories_update_own"
   on public.categories for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+drop policy if exists "categories_delete_own" on public.categories;
 create policy "categories_delete_own"
   on public.categories for delete
   using (user_id = auth.uid());
@@ -75,19 +85,23 @@ create policy "categories_delete_own"
 -- ---------------------------------------------------------------------------
 -- transactions
 -- ---------------------------------------------------------------------------
+drop policy if exists "transactions_select_own" on public.transactions;
 create policy "transactions_select_own"
   on public.transactions for select
   using (user_id = auth.uid());
 
+drop policy if exists "transactions_insert_own" on public.transactions;
 create policy "transactions_insert_own"
   on public.transactions for insert
   with check (user_id = auth.uid());
 
+drop policy if exists "transactions_update_own" on public.transactions;
 create policy "transactions_update_own"
   on public.transactions for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+drop policy if exists "transactions_delete_own" on public.transactions;
 create policy "transactions_delete_own"
   on public.transactions for delete
   using (user_id = auth.uid());

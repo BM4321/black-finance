@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { normalizeSearchTerm, postgrestSearchPattern } from "@/lib/data/search";
 import { sumAmounts } from "@/lib/finance/money";
 import type { TransactionInput } from "@/lib/validation/transactions";
 import type { Database } from "@/types/database";
@@ -77,14 +78,11 @@ export type TransactionPage = {
 /**
  * Escape a user search string for PostgREST's `or` filter grammar.
  *
- * Commas and parentheses are structural in that grammar; a raw value containing
- * them would either break the query or inject extra filter clauses. PostgREST
- * treats a double-quoted value literally, so we strip quotes/backslashes and
- * wrap the term.
+ * Quoting and wildcard handling live in `lib/data/search.ts`, shared with the
+ * SQL totals function so the list and its totals always match the same rows.
  */
 function escapeSearch(term: string): string {
-  const cleaned = term.replace(/["\\]/g, "").slice(0, 100);
-  return `"*${cleaned}*"`;
+  return postgrestSearchPattern(term);
 }
 
 /** PostgREST numeric filter values must be plain numbers; ignore garbage. */
@@ -98,8 +96,10 @@ function numericFilter(value: string | undefined): number | undefined {
  * Build the filtered `transaction_details` query.
  *
  * Used only by the list. The totals RPC mirrors these predicates in SQL; the
- * two must be changed together when a filter is added. Returns the query
- * builder before ordering/ranging so the caller controls pagination.
+ * two must be changed together when a filter is added. Search is normalised
+ * through `lib/data/search.ts`, which `get_transaction_totals` also uses, so
+ * the list and its totals cannot disagree. Returns the query builder before
+ * ordering/ranging so the caller controls pagination.
  */
 function buildFilteredQuery(supabase: Client, filters: TransactionFilters) {
   let query = supabase.from("transaction_details").select("*", {
@@ -124,9 +124,12 @@ function buildFilteredQuery(supabase: Client, filters: TransactionFilters) {
   if (min !== undefined) query = query.gte("amount", min);
   if (max !== undefined) query = query.lte("amount", max);
 
-  if (filters.search && filters.search.trim() !== "") {
-    const term = escapeSearch(filters.search.trim());
-    query = query.or(`description.ilike.${term},payee.ilike.${term}`);
+  if (filters.search) {
+    const term = normalizeSearchTerm(filters.search);
+    if (term) {
+      const pattern = escapeSearch(term);
+      query = query.or(`description.ilike.${pattern},payee.ilike.${pattern}`);
+    }
   }
 
   return query;
@@ -177,7 +180,7 @@ export async function getTransactionTotals(
   filters: TransactionFilters = {},
 ): Promise<TransactionTotals> {
   const { data, error } = await supabase.rpc("get_transaction_totals", {
-    p_search: filters.search?.trim() || undefined,
+    p_search: normalizeSearchTerm(filters.search) ?? undefined,
     p_type: filters.type,
     p_account_id: filters.accountId,
     p_category_id: filters.categoryId,

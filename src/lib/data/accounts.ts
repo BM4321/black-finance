@@ -44,8 +44,12 @@ export type AccountWithBalance = {
 
 export type AccountSummary = {
   accounts: AccountWithBalance[];
-  /** Exact total as a decimal string (never a float). */
+  /** Exact total of every active account (spendable + savings). */
   totalBalance: string;
+  /** Exact total of active non-savings accounts. */
+  spendableBalance: string;
+  /** Exact total of active savings accounts. */
+  savingsBalance: string;
 };
 
 /**
@@ -75,19 +79,36 @@ export async function listAccounts(
 }
 
 /**
- * List accounts plus their exact total.
+ * List accounts plus their exact totals.
  *
- * The sum is done with sumAmounts (integer minor units) rather than a JS
- * float reduce, so a long account list cannot accumulate rounding drift.
+ * Totals are computed with sumAmounts (integer minor units) rather than a JS
+ * float reduce, so a long account list cannot accumulate rounding drift. The
+ * spendable/savings split mirrors `get_balance_breakdown` on the dashboard.
  */
 export async function getAccountSummary(
   supabase: Client,
 ): Promise<AccountSummary> {
   const accounts = await listAccounts(supabase);
-  const totalBalance = sumAmounts(
-    accounts.map((account) => account.current_balance),
+  const savingsAccounts = accounts.filter(
+    (account) => account.type === "savings",
   );
-  return { accounts, totalBalance };
+  const spendableAccounts = accounts.filter(
+    (account) => account.type !== "savings",
+  );
+
+  const spendableBalance = sumAmounts(
+    spendableAccounts.map((account) => account.current_balance),
+  );
+  const savingsBalance = sumAmounts(
+    savingsAccounts.map((account) => account.current_balance),
+  );
+
+  return {
+    accounts,
+    spendableBalance,
+    savingsBalance,
+    totalBalance: sumAmounts([spendableBalance, savingsBalance]),
+  };
 }
 
 export async function getAccount(

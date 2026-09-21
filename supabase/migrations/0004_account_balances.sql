@@ -19,7 +19,7 @@
 -- caller's RLS policies apply to the underlying tables.
 -- ============================================================================
 
-create view public.account_balances
+create or replace view public.account_balances
 with (security_invoker = true)
 as
 select

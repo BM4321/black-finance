@@ -32,18 +32,26 @@ create extension if not exists "pgcrypto"; -- gen_random_uuid()
 -- Postgres enums give us a constrained, self-documenting value set and prevent
 -- typos at the database level (not just in TypeScript).
 -- ---------------------------------------------------------------------------
-create type public.account_type as enum (
-  'cash',
-  'bank',
-  'savings',
-  'mobile_money',
-  'investment',
-  'other'
-);
+-- Wrapped in DO blocks so re-running the file is safe: `create type` has no
+-- `if not exists`, but a duplicate_object can simply be ignored.
+do $$ begin
+  create type public.account_type as enum (
+    'cash',
+    'bank',
+    'savings',
+    'mobile_money',
+    'investment',
+    'other'
+  );
+exception when duplicate_object then null; end $$;
 
-create type public.category_kind as enum ('income', 'expense');
+do $$ begin
+  create type public.category_kind as enum ('income', 'expense');
+exception when duplicate_object then null; end $$;
 
-create type public.transaction_type as enum ('income', 'expense', 'transfer');
+do $$ begin
+  create type public.transaction_type as enum ('income', 'expense', 'transfer');
+exception when duplicate_object then null; end $$;
 
 -- ---------------------------------------------------------------------------
 -- profiles
@@ -52,7 +60,7 @@ create type public.transaction_type as enum ('income', 'expense', 'transfer');
 -- duplicate the email here (it lives in auth.users); this holds app-specific
 -- preferences.
 -- ---------------------------------------------------------------------------
-create table public.profiles (
+create table if not exists public.profiles (
   id           uuid primary key references auth.users (id) on delete cascade,
   display_name text,
   currency     char(3) not null default 'TZS',
@@ -70,7 +78,7 @@ create table public.profiles (
 -- UNIQUE(id, user_id) is not redundant: it is the target of the composite
 -- foreign keys below that guarantee cross-user references are impossible.
 -- ---------------------------------------------------------------------------
-create table public.accounts (
+create table if not exists public.accounts (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null references auth.users (id) on delete cascade,
   name            text not null check (length(trim(name)) between 1 and 80),
@@ -85,11 +93,11 @@ create table public.accounts (
   unique (id, user_id)
 );
 
-create index accounts_user_id_idx on public.accounts (user_id);
+create index if not exists accounts_user_id_idx on public.accounts (user_id);
 
 -- A user cannot have two *active* accounts with the same name. Archived
 -- accounts are exempt, so a name can be reused after archiving.
-create unique index accounts_user_name_active_idx
+create unique index if not exists accounts_user_name_active_idx
   on public.accounts (user_id, name)
   where not is_archived;
 
@@ -100,7 +108,7 @@ create unique index accounts_user_name_active_idx
 -- every category has a real owner. This keeps RLS and the composite-FK
 -- ownership model uniform (no special-cased NULL user_id rows).
 -- ---------------------------------------------------------------------------
-create table public.categories (
+create table if not exists public.categories (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references auth.users (id) on delete cascade,
   name       text not null check (length(trim(name)) between 1 and 60),
@@ -114,11 +122,11 @@ create table public.categories (
   unique (id, user_id)
 );
 
-create index categories_user_id_idx on public.categories (user_id);
-create index categories_user_kind_idx on public.categories (user_id, kind);
+create index if not exists categories_user_id_idx on public.categories (user_id);
+create index if not exists categories_user_kind_idx on public.categories (user_id, kind);
 
 -- Names are unique per kind among active categories; archived ones are exempt.
-create unique index categories_user_name_kind_active_idx
+create unique index if not exists categories_user_name_kind_active_idx
   on public.categories (user_id, name, kind)
   where not is_archived;
 
@@ -141,7 +149,7 @@ create unique index categories_user_name_kind_active_idx
 -- `occurred_on` is a DATE, not a timestamp: a transaction happens on a
 -- calendar day, and storing an instant invites timezone drift.
 -- ---------------------------------------------------------------------------
-create table public.transactions (
+create table if not exists public.transactions (
   id                  uuid primary key default gen_random_uuid(),
   user_id             uuid not null references auth.users (id) on delete cascade,
   type                public.transaction_type not null,
@@ -183,14 +191,14 @@ create table public.transactions (
   )
 );
 
-create index transactions_user_occurred_idx
+create index if not exists transactions_user_occurred_idx
   on public.transactions (user_id, occurred_on desc, created_at desc);
-create index transactions_user_account_idx
+create index if not exists transactions_user_account_idx
   on public.transactions (user_id, account_id);
-create index transactions_transfer_account_idx
+create index if not exists transactions_transfer_account_idx
   on public.transactions (transfer_account_id)
   where transfer_account_id is not null;
-create index transactions_user_category_idx
+create index if not exists transactions_user_category_idx
   on public.transactions (user_id, category_id)
   where category_id is not null;
 
@@ -207,18 +215,22 @@ begin
 end;
 $$;
 
+drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at
   before update on public.profiles
   for each row execute function public.set_updated_at();
 
+drop trigger if exists accounts_set_updated_at on public.accounts;
 create trigger accounts_set_updated_at
   before update on public.accounts
   for each row execute function public.set_updated_at();
 
+drop trigger if exists categories_set_updated_at on public.categories;
 create trigger categories_set_updated_at
   before update on public.categories
   for each row execute function public.set_updated_at();
 
+drop trigger if exists transactions_set_updated_at on public.transactions;
 create trigger transactions_set_updated_at
   before update on public.transactions
   for each row execute function public.set_updated_at();
@@ -261,9 +273,11 @@ begin
 end;
 $$;
 
+drop trigger if exists transactions_enforce_category_kind on public.transactions;
 create trigger transactions_enforce_category_kind
   before insert or update on public.transactions
   for each row execute function public.enforce_transaction_category_kind();
+
 
 -- >>>>>>>>>>>>>>>>>>>> 0002_rls_policies.sql <<<<<<<<<<<<<<<<<<<<
 
@@ -292,10 +306,12 @@ alter table public.transactions enable row level security;
 --   Users may read/update their own profile. Inserts happen via trigger, and
 --   deletes cascade from auth.users, so no insert/delete policy is needed.
 -- ---------------------------------------------------------------------------
+drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
   on public.profiles for select
   using (id = auth.uid());
 
+drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own"
   on public.profiles for update
   using (id = auth.uid())
@@ -304,19 +320,23 @@ create policy "profiles_update_own"
 -- ---------------------------------------------------------------------------
 -- accounts
 -- ---------------------------------------------------------------------------
+drop policy if exists "accounts_select_own" on public.accounts;
 create policy "accounts_select_own"
   on public.accounts for select
   using (user_id = auth.uid());
 
+drop policy if exists "accounts_insert_own" on public.accounts;
 create policy "accounts_insert_own"
   on public.accounts for insert
   with check (user_id = auth.uid());
 
+drop policy if exists "accounts_update_own" on public.accounts;
 create policy "accounts_update_own"
   on public.accounts for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+drop policy if exists "accounts_delete_own" on public.accounts;
 create policy "accounts_delete_own"
   on public.accounts for delete
   using (user_id = auth.uid());
@@ -324,19 +344,23 @@ create policy "accounts_delete_own"
 -- ---------------------------------------------------------------------------
 -- categories
 -- ---------------------------------------------------------------------------
+drop policy if exists "categories_select_own" on public.categories;
 create policy "categories_select_own"
   on public.categories for select
   using (user_id = auth.uid());
 
+drop policy if exists "categories_insert_own" on public.categories;
 create policy "categories_insert_own"
   on public.categories for insert
   with check (user_id = auth.uid());
 
+drop policy if exists "categories_update_own" on public.categories;
 create policy "categories_update_own"
   on public.categories for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+drop policy if exists "categories_delete_own" on public.categories;
 create policy "categories_delete_own"
   on public.categories for delete
   using (user_id = auth.uid());
@@ -344,22 +368,27 @@ create policy "categories_delete_own"
 -- ---------------------------------------------------------------------------
 -- transactions
 -- ---------------------------------------------------------------------------
+drop policy if exists "transactions_select_own" on public.transactions;
 create policy "transactions_select_own"
   on public.transactions for select
   using (user_id = auth.uid());
 
+drop policy if exists "transactions_insert_own" on public.transactions;
 create policy "transactions_insert_own"
   on public.transactions for insert
   with check (user_id = auth.uid());
 
+drop policy if exists "transactions_update_own" on public.transactions;
 create policy "transactions_update_own"
   on public.transactions for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+drop policy if exists "transactions_delete_own" on public.transactions;
 create policy "transactions_delete_own"
   on public.transactions for delete
   using (user_id = auth.uid());
+
 
 -- >>>>>>>>>>>>>>>>>>>> 0003_new_user_bootstrap.sql <<<<<<<<<<<<<<<<<<<<
 
@@ -430,6 +459,7 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+
 -- >>>>>>>>>>>>>>>>>>>> 0004_account_balances.sql <<<<<<<<<<<<<<<<<<<<
 
 -- ============================================================================
@@ -453,7 +483,7 @@ create trigger on_auth_user_created
 -- caller's RLS policies apply to the underlying tables.
 -- ============================================================================
 
-create view public.account_balances
+create or replace view public.account_balances
 with (security_invoker = true)
 as
 select
@@ -486,6 +516,7 @@ group by a.id;
 
 comment on view public.account_balances is
   'Derived per-account balance. security_invoker=true so RLS applies.';
+
 
 -- >>>>>>>>>>>>>>>>>>>> 0005_backfill_existing_users.sql <<<<<<<<<<<<<<<<<<<<
 
@@ -544,6 +575,7 @@ where not exists (
   select 1 from public.categories c where c.user_id = u.id
 );
 
+
 -- >>>>>>>>>>>>>>>>>>>> 0006_transaction_details.sql <<<<<<<<<<<<<<<<<<<<
 
 -- ============================================================================
@@ -562,7 +594,7 @@ where not exists (
 -- are reported separately and are NEVER counted as expenses.
 -- ============================================================================
 
-create view public.transaction_details
+create or replace view public.transaction_details
 with (security_invoker = true)
 as
 select
@@ -592,7 +624,7 @@ comment on view public.transaction_details is
   'Transaction read model with account/category names. security_invoker=true.';
 
 -- Supports filtering the list and totals by type over a date range.
-create index transactions_user_type_occurred_idx
+create index if not exists transactions_user_type_occurred_idx
   on public.transactions (user_id, type, occurred_on desc);
 
 -- ---------------------------------------------------------------------------
@@ -641,6 +673,7 @@ $$;
 
 comment on function public.get_transaction_totals is
   'DB-side income/expense/transfer totals for a filtered transaction set.';
+
 
 -- >>>>>>>>>>>>>>>>>>>> 0007_dashboard_functions.sql <<<<<<<<<<<<<<<<<<<<
 
@@ -753,6 +786,7 @@ $$;
 comment on function public.get_net_worth is
   'Sum of non-archived account balances (derived). Respects RLS.';
 
+
 -- >>>>>>>>>>>>>>>>>>>> 0008_budgets.sql <<<<<<<<<<<<<<<<<<<<
 
 -- ============================================================================
@@ -777,7 +811,7 @@ comment on function public.get_net_worth is
 -- figures cannot drift from the ledger.
 -- ============================================================================
 
-create table public.budgets (
+create table if not exists public.budgets (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users (id) on delete cascade,
   -- First day of the month the budget applies to. Storing a DATE keeps range
@@ -795,10 +829,10 @@ create table public.budgets (
     check (date_trunc('month', period_month)::date = period_month)
 );
 
-create index budgets_user_period_idx
+create index if not exists budgets_user_period_idx
   on public.budgets (user_id, period_month desc);
 
-create table public.budget_items (
+create table if not exists public.budget_items (
   id          uuid primary key default gen_random_uuid(),
   budget_id   uuid not null,
   user_id     uuid not null references auth.users (id) on delete cascade,
@@ -820,13 +854,15 @@ create table public.budget_items (
   unique (budget_id, category_id)
 );
 
-create index budget_items_budget_idx on public.budget_items (budget_id);
-create index budget_items_user_idx on public.budget_items (user_id);
+create index if not exists budget_items_budget_idx on public.budget_items (budget_id);
+create index if not exists budget_items_user_idx on public.budget_items (user_id);
 
+drop trigger if exists budgets_set_updated_at on public.budgets;
 create trigger budgets_set_updated_at
   before update on public.budgets
   for each row execute function public.set_updated_at();
 
+drop trigger if exists budget_items_set_updated_at on public.budget_items;
 create trigger budget_items_set_updated_at
   before update on public.budget_items
   for each row execute function public.set_updated_at();
@@ -862,9 +898,11 @@ begin
 end;
 $$;
 
+drop trigger if exists budget_items_enforce_expense_category on public.budget_items;
 create trigger budget_items_enforce_expense_category
   before insert or update on public.budget_items
   for each row execute function public.enforce_budget_item_expense_category();
+
 
 -- >>>>>>>>>>>>>>>>>>>> 0009_budget_rls.sql <<<<<<<<<<<<<<<<<<<<
 
@@ -882,19 +920,23 @@ alter table public.budget_items enable row level security;
 -- ---------------------------------------------------------------------------
 -- budgets
 -- ---------------------------------------------------------------------------
+drop policy if exists "budgets_select_own" on public.budgets;
 create policy "budgets_select_own"
   on public.budgets for select
   using (user_id = auth.uid());
 
+drop policy if exists "budgets_insert_own" on public.budgets;
 create policy "budgets_insert_own"
   on public.budgets for insert
   with check (user_id = auth.uid());
 
+drop policy if exists "budgets_update_own" on public.budgets;
 create policy "budgets_update_own"
   on public.budgets for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+drop policy if exists "budgets_delete_own" on public.budgets;
 create policy "budgets_delete_own"
   on public.budgets for delete
   using (user_id = auth.uid());
@@ -902,22 +944,27 @@ create policy "budgets_delete_own"
 -- ---------------------------------------------------------------------------
 -- budget_items
 -- ---------------------------------------------------------------------------
+drop policy if exists "budget_items_select_own" on public.budget_items;
 create policy "budget_items_select_own"
   on public.budget_items for select
   using (user_id = auth.uid());
 
+drop policy if exists "budget_items_insert_own" on public.budget_items;
 create policy "budget_items_insert_own"
   on public.budget_items for insert
   with check (user_id = auth.uid());
 
+drop policy if exists "budget_items_update_own" on public.budget_items;
 create policy "budget_items_update_own"
   on public.budget_items for update
   using (user_id = auth.uid())
   with check (user_id = auth.uid());
 
+drop policy if exists "budget_items_delete_own" on public.budget_items;
 create policy "budget_items_delete_own"
   on public.budget_items for delete
   using (user_id = auth.uid());
+
 
 -- >>>>>>>>>>>>>>>>>>>> 0010_budget_status.sql <<<<<<<<<<<<<<<<<<<<
 
@@ -1053,3 +1100,330 @@ $$;
 
 comment on function public.copy_budget is
   'Copies a budget from one month to another. Idempotent; returns the target budget id.';
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0011_goals.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0011_goals.sql
+--
+-- Savings goals and the contributions made toward them.
+--
+-- Model:
+--   goals               one row per goal ("Driving lessons")
+--   goal_contributions  a ledger of money put toward a goal
+--
+-- IMPORTANT: progress is DERIVED from goal_contributions, exactly as account
+-- balances are derived from transactions. There is no `current_amount` column,
+-- so a goal's progress can never drift from the contributions that produced it.
+--
+-- A contribution is its own record, not a transaction. Putting money toward a
+-- goal is not spending and is not a transfer between accounts, so keeping it
+-- out of `transactions` means a contribution can never inflate expenses or be
+-- miscounted as a transfer.
+--
+-- Ownership uses the composite-foreign-key pattern: goal_contributions carries
+-- user_id and references goals(id, user_id), so a contribution can never attach
+-- to another user's goal even if a query forgets to filter by user_id.
+--
+-- The model is deliberately contribution-oriented rather than a single stored
+-- "current amount": future automation (recurring contributions, linking a
+-- contribution to a transfer) can append to the ledger without a schema change.
+-- ============================================================================
+
+create table if not exists public.goals (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references auth.users (id) on delete cascade,
+  name          text not null check (length(trim(name)) between 1 and 80),
+  target_amount numeric(19, 4) not null check (target_amount > 0),
+  -- Optional deadline. A DATE, not a timestamp, for the same timezone-safety
+  -- reason transactions use `occurred_on`.
+  target_date   date,
+  notes         text,
+  is_archived   boolean not null default false,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+
+  unique (id, user_id)
+);
+
+create index if not exists goals_user_id_idx on public.goals (user_id);
+
+-- A user cannot have two *active* goals with the same name. Archived goals are
+-- exempt so a name can be reused after archiving.
+create unique index if not exists goals_user_name_active_idx
+  on public.goals (user_id, name)
+  where not is_archived;
+
+-- ---------------------------------------------------------------------------
+-- goal_contributions
+--
+-- Amounts are always positive, mirroring transactions: direction lives in the
+-- sign of the derived sum, not in the stored value.
+-- ---------------------------------------------------------------------------
+create table if not exists public.goal_contributions (
+  id             uuid primary key default gen_random_uuid(),
+  goal_id        uuid not null,
+  user_id        uuid not null references auth.users (id) on delete cascade,
+  amount         numeric(19, 4) not null check (amount > 0),
+  contributed_on date not null default current_date,
+  note           text,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+
+  constraint goal_contributions_goal_fk
+    foreign key (goal_id, user_id)
+    references public.goals (id, user_id)
+    on delete cascade
+);
+
+create index if not exists goal_contributions_goal_idx
+  on public.goal_contributions (goal_id);
+create index if not exists goal_contributions_user_idx
+  on public.goal_contributions (user_id);
+
+-- ---------------------------------------------------------------------------
+-- updated_at maintenance
+-- ---------------------------------------------------------------------------
+drop trigger if exists goals_set_updated_at on public.goals;
+create trigger goals_set_updated_at
+  before update on public.goals
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists goal_contributions_set_updated_at on public.goal_contributions;
+create trigger goal_contributions_set_updated_at
+  before update on public.goal_contributions
+  for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- goal_progress view
+--
+-- Derives each goal's current amount, remaining and completion percentage from
+-- its contributions.
+--
+-- `security_invoker = true` is essential: without it the view would run as its
+-- owner and bypass RLS, exposing every user's goals. With it, the caller's RLS
+-- policies on goals/goal_contributions apply.
+--
+-- `target_amount > 0` is enforced by a CHECK, so the division cannot hit zero.
+-- ---------------------------------------------------------------------------
+create or replace view public.goal_progress
+with (security_invoker = true)
+as
+select
+  g.id,
+  g.user_id,
+  g.name,
+  g.target_amount,
+  g.target_date,
+  g.notes,
+  g.is_archived,
+  g.created_at,
+  g.updated_at,
+  coalesce(sum(c.amount), 0)                             as current_amount,
+  g.target_amount - coalesce(sum(c.amount), 0)           as remaining,
+  round((coalesce(sum(c.amount), 0) / g.target_amount) * 100, 1) as percent_complete
+from public.goals g
+left join public.goal_contributions c on c.goal_id = g.id
+group by g.id;
+
+comment on view public.goal_progress is
+  'Derived goal progress (current/remaining/percent) from contributions. security_invoker=true so RLS applies.';
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0012_goal_rls.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0012_goal_rls.sql
+--
+-- Row Level Security for goals and goal_contributions. Same ownership rule as
+-- every other table: user_id = auth.uid(). Without policies, RLS defaults to
+-- denying everything, so these are required.
+-- ============================================================================
+
+alter table public.goals               enable row level security;
+alter table public.goal_contributions  enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- goals
+-- ---------------------------------------------------------------------------
+drop policy if exists "goals_select_own" on public.goals;
+create policy "goals_select_own"
+  on public.goals for select
+  using (user_id = auth.uid());
+
+drop policy if exists "goals_insert_own" on public.goals;
+create policy "goals_insert_own"
+  on public.goals for insert
+  with check (user_id = auth.uid());
+
+drop policy if exists "goals_update_own" on public.goals;
+create policy "goals_update_own"
+  on public.goals for update
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists "goals_delete_own" on public.goals;
+create policy "goals_delete_own"
+  on public.goals for delete
+  using (user_id = auth.uid());
+
+-- ---------------------------------------------------------------------------
+-- goal_contributions
+-- ---------------------------------------------------------------------------
+drop policy if exists "goal_contributions_select_own" on public.goal_contributions;
+create policy "goal_contributions_select_own"
+  on public.goal_contributions for select
+  using (user_id = auth.uid());
+
+drop policy if exists "goal_contributions_insert_own" on public.goal_contributions;
+create policy "goal_contributions_insert_own"
+  on public.goal_contributions for insert
+  with check (user_id = auth.uid());
+
+drop policy if exists "goal_contributions_update_own" on public.goal_contributions;
+create policy "goal_contributions_update_own"
+  on public.goal_contributions for update
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists "goal_contributions_delete_own" on public.goal_contributions;
+create policy "goal_contributions_delete_own"
+  on public.goal_contributions for delete
+  using (user_id = auth.uid());
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0013_search_consistency.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0013_search_consistency.sql
+--
+-- Makes the transaction list and its totals agree on search semantics.
+--
+-- The list searches through PostgREST with `description.ilike."*term*"`, and
+-- `get_transaction_totals` searches in SQL with `ilike '%' || term || '%'`.
+-- They are different parsers, and they disagreed on one important character:
+--
+--   * PostgREST maps `*` to `%` inside an `ilike` value (its wildcard alias),
+--     so the list treated `*` as "match anything".
+--   * The SQL function passed `*` straight to Postgres, where it is a literal.
+--
+-- So a search containing `*` matched different rows in the table and in the
+-- totals header. `%` and `_` were already wildcards on both sides, and the
+-- client already strips `"` and `\`, so those are handled below to stay in
+-- lockstep with src/lib/data/search.ts.
+--
+-- `normalize_search_term` is the single SQL-side definition of that contract.
+-- ============================================================================
+
+create or replace function public.normalize_search_term(p_term text)
+returns text
+language sql
+immutable
+as $$
+  select
+    case
+      when p_term is null or trim(p_term) = '' then null
+      else
+        -- Mirrors normalizeSearchTerm() + postgrestSearchPattern() in
+        -- src/lib/data/search.ts: strip quotes/backslashes (structural in
+        -- PostgREST's filter grammar), cap the length, and map `*` to `%`
+        -- (PostgREST's ilike wildcard alias).
+        replace(
+          left(replace(replace(trim(p_term), '"', ''), '\', ''), 100),
+          '*', '%'
+        )
+    end;
+$$;
+
+comment on function public.normalize_search_term is
+  'Normalises a transaction search term to match the PostgREST list filter. Strips quotes/backslashes, caps length, maps * to %.';
+
+-- ---------------------------------------------------------------------------
+-- Re-create the totals function so its search predicate uses the shared
+-- normaliser and therefore matches the list query exactly.
+-- ---------------------------------------------------------------------------
+create or replace function public.get_transaction_totals(
+  p_search      text  default null,
+  p_type        public.transaction_type default null,
+  p_account_id  uuid  default null,
+  p_category_id uuid  default null,
+  p_date_from   date  default null,
+  p_date_to     date  default null,
+  p_amount_min  numeric default null,
+  p_amount_max  numeric default null
+)
+returns table (
+  income_total   numeric,
+  expense_total  numeric,
+  transfer_total numeric
+)
+language sql
+stable
+as $$
+  select
+    coalesce(sum(t.amount) filter (where t.type = 'income'), 0)   as income_total,
+    coalesce(sum(t.amount) filter (where t.type = 'expense'), 0)  as expense_total,
+    coalesce(sum(t.amount) filter (where t.type = 'transfer'), 0) as transfer_total
+  from public.transactions t
+  where
+    (p_search      is null
+                   or public.normalize_search_term(p_search) is null
+                   or t.description ilike '%' || public.normalize_search_term(p_search) || '%'
+                   or t.payee       ilike '%' || public.normalize_search_term(p_search) || '%')
+    and (p_type        is null or t.type = p_type)
+    and (p_account_id  is null or t.account_id = p_account_id
+                               or t.transfer_account_id = p_account_id)
+    and (p_category_id is null or t.category_id = p_category_id)
+    and (p_date_from   is null or t.occurred_on >= p_date_from)
+    and (p_date_to     is null or t.occurred_on <= p_date_to)
+    and (p_amount_min  is null or t.amount >= p_amount_min)
+    and (p_amount_max  is null or t.amount <= p_amount_max);
+$$;
+
+comment on function public.get_transaction_totals is
+  'DB-side income/expense/transfer totals for a filtered transaction set. Search uses normalize_search_term so it matches the list query.';
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0014_balance_breakdown.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0014_balance_breakdown.sql
+--
+-- Splits the derived balances into "spendable" and "savings" so the dashboard
+-- can show a savings account without it being lumped into everyday spending
+-- money.
+--
+-- Definition:
+--   spendable  = current_balance of every non-archived account whose type is
+--                NOT 'savings' (cash, bank, mobile money, investment, other)
+--   savings    = current_balance of non-archived 'savings' accounts only
+--   net_worth  = spendable + savings (every non-archived account)
+--
+-- This is a presentation split, not a financial invariant: both figures come
+-- from the same `account_balances` view, so they always agree and net_worth is
+-- simply their sum. `get_net_worth` is left unchanged for callers (the AI
+-- assistant) that want the single total.
+--
+-- SECURITY INVOKER, so RLS on the underlying view still applies.
+-- ============================================================================
+
+create or replace function public.get_balance_breakdown()
+returns table (
+  spendable numeric,
+  savings   numeric,
+  net_worth numeric
+)
+language sql
+stable
+as $$
+  select
+    coalesce(sum(current_balance) filter (where type <> 'savings'), 0) as spendable,
+    coalesce(sum(current_balance) filter (where type =  'savings'), 0) as savings,
+    coalesce(sum(current_balance), 0)                                  as net_worth
+  from public.account_balances
+  where not is_archived;
+$$;
+
+comment on function public.get_balance_breakdown is
+  'Non-archived balances split into spendable vs savings accounts, plus net worth. Respects RLS.';

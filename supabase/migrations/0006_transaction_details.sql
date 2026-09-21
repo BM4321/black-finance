@@ -14,7 +14,7 @@
 -- are reported separately and are NEVER counted as expenses.
 -- ============================================================================
 
-create view public.transaction_details
+create or replace view public.transaction_details
 with (security_invoker = true)
 as
 select
@@ -44,7 +44,7 @@ comment on view public.transaction_details is
   'Transaction read model with account/category names. security_invoker=true.';
 
 -- Supports filtering the list and totals by type over a date range.
-create index transactions_user_type_occurred_idx
+create index if not exists transactions_user_type_occurred_idx
   on public.transactions (user_id, type, occurred_on desc);
 
 -- ---------------------------------------------------------------------------

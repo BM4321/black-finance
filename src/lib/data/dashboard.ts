@@ -70,3 +70,33 @@ export async function getNetWorth(supabase: Client): Promise<string> {
   if (error) throw new Error(`Failed to load net worth: ${error.message}`);
   return sumAmounts([toDecimal(data)]);
 }
+
+export type BalanceBreakdown = {
+  /** Balances of non-savings accounts (cash, bank, mobile money, ...). */
+  spendable: string;
+  /** Balances of savings-type accounts only. */
+  savings: string;
+  /** spendable + savings. */
+  netWorth: string;
+};
+
+/**
+ * Non-archived balances split into spendable vs savings, plus net worth.
+ *
+ * All three come from the same database aggregate, so they can never disagree
+ * (net worth is exactly spendable + savings). Values are re-summed exactly for
+ * consistency with every other money figure.
+ */
+export async function getBalanceBreakdown(
+  supabase: Client,
+): Promise<BalanceBreakdown> {
+  const { data, error } = await supabase.rpc("get_balance_breakdown");
+  if (error) throw new Error(`Failed to load balances: ${error.message}`);
+
+  const row = data?.[0];
+  return {
+    spendable: sumAmounts([toDecimal(row?.spendable)]),
+    savings: sumAmounts([toDecimal(row?.savings)]),
+    netWorth: sumAmounts([toDecimal(row?.net_worth)]),
+  };
+}

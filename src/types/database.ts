@@ -160,6 +160,82 @@ export type Database = {
         }
         Relationships: []
       }
+      goal_contributions: {
+        Row: {
+          amount: number
+          contributed_on: string
+          created_at: string
+          goal_id: string
+          id: string
+          note: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          contributed_on?: string
+          created_at?: string
+          goal_id: string
+          id?: string
+          note?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          contributed_on?: string
+          created_at?: string
+          goal_id?: string
+          id?: string
+          note?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_contributions_goal_fk"
+            columns: ["goal_id", "user_id"]
+            referencedRelation: "goals"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      goals: {
+        Row: {
+          created_at: string
+          id: string
+          is_archived: boolean
+          name: string
+          notes: string | null
+          target_amount: number
+          target_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          name: string
+          notes?: string | null
+          target_amount: number
+          target_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          name?: string
+          notes?: string | null
+          target_amount?: number
+          target_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -281,6 +357,23 @@ export type Database = {
         }
         Relationships: []
       }
+      goal_progress: {
+        Row: {
+          created_at: string | null
+          current_amount: number | null
+          id: string | null
+          is_archived: boolean | null
+          name: string | null
+          notes: string | null
+          percent_complete: number | null
+          remaining: number | null
+          target_amount: number | null
+          target_date: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       transaction_details: {
         Row: {
           account_id: string | null
@@ -343,6 +436,14 @@ export type Database = {
       dearmor: { Args: { "": string }; Returns: string }
       gen_random_uuid: { Args: never; Returns: string }
       gen_salt: { Args: { "": string }; Returns: string }
+      get_balance_breakdown: {
+        Args: never
+        Returns: {
+          net_worth: number
+          savings: number
+          spendable: number
+        }[]
+      }
       get_budget_status: {
         Args: { p_period_month: string }
         Returns: {
@@ -393,6 +494,10 @@ export type Database = {
           income_total: number
           transfer_total: number
         }[]
+      }
+      normalize_search_term: {
+        Args: { p_term: string }
+        Returns: string
       }
       pgp_armor_headers: {
         Args: { "": string }

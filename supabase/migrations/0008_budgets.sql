@@ -20,7 +20,7 @@
 -- figures cannot drift from the ledger.
 -- ============================================================================
 
-create table public.budgets (
+create table if not exists public.budgets (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users (id) on delete cascade,
   -- First day of the month the budget applies to. Storing a DATE keeps range
@@ -38,10 +38,10 @@ create table public.budgets (
     check (date_trunc('month', period_month)::date = period_month)
 );
 
-create index budgets_user_period_idx
+create index if not exists budgets_user_period_idx
   on public.budgets (user_id, period_month desc);
 
-create table public.budget_items (
+create table if not exists public.budget_items (
   id          uuid primary key default gen_random_uuid(),
   budget_id   uuid not null,
   user_id     uuid not null references auth.users (id) on delete cascade,
@@ -63,13 +63,15 @@ create table public.budget_items (
   unique (budget_id, category_id)
 );
 
-create index budget_items_budget_idx on public.budget_items (budget_id);
-create index budget_items_user_idx on public.budget_items (user_id);
+create index if not exists budget_items_budget_idx on public.budget_items (budget_id);
+create index if not exists budget_items_user_idx on public.budget_items (user_id);
 
+drop trigger if exists budgets_set_updated_at on public.budgets;
 create trigger budgets_set_updated_at
   before update on public.budgets
   for each row execute function public.set_updated_at();
 
+drop trigger if exists budget_items_set_updated_at on public.budget_items;
 create trigger budget_items_set_updated_at
   before update on public.budget_items
   for each row execute function public.set_updated_at();
@@ -105,6 +107,7 @@ begin
 end;
 $$;
 
+drop trigger if exists budget_items_enforce_expense_category on public.budget_items;
 create trigger budget_items_enforce_expense_category
   before insert or update on public.budget_items
   for each row execute function public.enforce_budget_item_expense_category();
