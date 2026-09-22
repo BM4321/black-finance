@@ -8,10 +8,10 @@ import {
   TopSpendingCategories,
 } from "@/components/dashboard/widgets";
 import {
-  IncomeExpenseChart,
-  SavingsRateChart,
-  SpendingPieChart,
-} from "@/components/reports/charts";
+  IncomeExpenseSection,
+  SavingsRateSection,
+  SpendingSection,
+} from "@/components/reports/sections";
 import { TransactionList } from "@/components/transactions/transaction-list";
 import { Card } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
@@ -94,7 +94,7 @@ export default async function DashboardPage() {
       {/* Headline numbers -------------------------------------------------- */}
       {/* Balances first: spendable, savings and investments are shown
           separately so money set aside is never mixed into everyday cash. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Spendable balance"
           value={formatMoney(balances.spendable)}
@@ -142,32 +142,26 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="stagger grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Trend ----------------------------------------------------------- */}
-        <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">
-            Income vs expenses · last 6 months
-          </h2>
-          <IncomeExpenseChart data={monthly} />
+        <Card className="p-4 transition-shadow hover:shadow-md">
+          <IncomeExpenseSection
+            data={monthly}
+            title="Income vs expenses · last 6 months"
+          />
         </Card>
 
         {/* Spending by category ------------------------------------------- */}
-        <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">
-            Spending by category · this month
-          </h2>
-          {spending.length === 0 ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">
-              No expenses recorded this month.
-            </p>
-          ) : (
-            <SpendingPieChart data={spending} />
-          )}
+        <Card className="p-4 transition-shadow hover:shadow-md">
+          <SpendingSection
+            data={spending}
+            title="Spending by category · this month"
+          />
         </Card>
       </div>
 
       {/* Insight widgets --------------------------------------------------- */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="stagger grid grid-cols-1 gap-4 lg:grid-cols-2">
         <NetWorthComposition
           spendable={balances.spendable}
           savings={balances.savings}
@@ -192,12 +186,8 @@ export default async function DashboardPage() {
       </div>
 
       {/* Savings rate ------------------------------------------------------ */}
-      <Card className="p-4">
-        <h2 className="mb-1 text-sm font-semibold">Savings rate · last 6 months</h2>
-        <p className="mb-3 text-xs text-muted-foreground">
-          Share of income kept each month. Months with no income are skipped.
-        </p>
-        <SavingsRateChart data={monthly} />
+      <Card className="animate-fade-up p-4">
+        <SavingsRateSection data={monthly} />
       </Card>
 
       {/* Recent transactions ---------------------------------------------- */}

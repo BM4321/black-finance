@@ -52,7 +52,155 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Collapsible sidebar.
+ *
+ * The collapsed state is a `data-collapsed` attribute on the <aside>, written
+ * by the client toggle and read here. Doing it in CSS (rather than React state)
+ * means the server can render the correct initial state from a cookie with no
+ * hydration mismatch, and toggling costs no re-render.
+ */
+.sidebar {
+  width: 16rem;
+  transition: width 0.2s ease-out;
+}
+
+.sidebar[data-collapsed="true"] {
+  width: 5rem;
+}
+
+.sidebar[data-collapsed="true"] .sidebar-label {
+  display: none;
+}
+
+.sidebar[data-collapsed="true"] a,
+.sidebar[data-collapsed="true"] button {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.sidebar[data-collapsed="true"] .sidebar-chevron {
+  transform: rotate(180deg);
+}
+
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/*
+ * Animation.
+ *
+ * A small, shared vocabulary so motion is consistent rather than ad hoc. Every
+ * animation is defined here as a utility class plus the `--animate-*` token, and
+ * every one is disabled under `prefers-reduced-motion` below. Motion is a
+ * enhancement: nothing here is required to read the page.
+ */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out both;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-overlay-in {
+  animation: overlay-in 0.2s ease-out both;
+}
+
+/*
+ * Stagger helper: children fade up in sequence. Set `--stagger-step` (default
+ * 40ms) on the container and each child is delayed by its index. Implemented
+ * with `:nth-child` up to 12 so there is no JS timing to keep in sync.
+ */
+.stagger > * {
+  animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(7) { animation-delay: 240ms; }
+.stagger > *:nth-child(8) { animation-delay: 280ms; }
+.stagger > *:nth-child(9) { animation-delay: 320ms; }
+.stagger > *:nth-child(10) { animation-delay: 360ms; }
+.stagger > *:nth-child(11) { animation-delay: 400ms; }
+.stagger > *:nth-child(12) { animation-delay: 440ms; }
+
+/*
+ * Respect the operating system's reduced-motion setting. This is an
+ * accessibility requirement, not a nicety: users who ask for less motion
+ * should get none. We also neutralise delays so staggered content is not
+ * hidden waiting on an animation that will not run.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

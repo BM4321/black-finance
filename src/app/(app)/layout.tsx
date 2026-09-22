@@ -2,25 +2,19 @@ import Link from "next/link";
 
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { MobileNav } from "@/components/ui/mobile-nav";
+import { Sidebar } from "@/components/ui/sidebar";
 import { isAssistantConfigured } from "@/lib/ai/config";
 import { requireUser } from "@/lib/auth";
-
-const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/transactions", label: "Transactions" },
-  { href: "/accounts", label: "Accounts" },
-  { href: "/budgets", label: "Budgets" },
-  { href: "/goals", label: "Goals" },
-  { href: "/investments", label: "Investments" },
-  { href: "/debts", label: "Debts" },
-  { href: "/reports", label: "Reports" },
-];
+import { NAV_ITEMS } from "@/lib/ui/nav";
 
 /**
  * Layout for all authenticated app routes.
  *
- * requireUser() is a server-side guard in addition to the proxy redirect, so
- * a missed proxy matcher can never expose an authenticated page.
+ * Desktop uses a persistent, collapsible sidebar (see `Sidebar`); mobile uses a
+ * hamburger drawer. requireUser() is a server-side guard in addition to the
+ * proxy redirect, so a missed proxy matcher can never expose an authenticated
+ * page.
  */
 export default async function AppLayout({
   children,
@@ -30,46 +24,31 @@ export default async function AppLayout({
   const user = await requireUser();
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-4 px-4 py-3 sm:px-6">
-          <Link href="/dashboard" className="font-semibold tracking-tight">
-            Finance
-          </Link>
-          <nav className="hidden flex-1 items-center gap-1 overflow-x-auto sm:flex">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-            <span className="hidden max-w-[16ch] truncate text-xs text-muted-foreground lg:inline">
-              {user.email}
-            </span>
-            <SignOutButton />
-          </div>
-        </div>
-        <nav className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-4 pb-2 sm:hidden">
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </header>
+    <div className="flex min-h-full flex-1">
+      <Sidebar items={NAV_ITEMS} email={user.email ?? undefined} />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
-        {children}
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Top bar: mobile menu and actions. On desktop the sidebar owns the
+            destinations, so this bar is slim. */}
+        <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
+          <div className="flex items-center gap-4 px-4 py-3 sm:px-6">
+            <Link
+              href="/dashboard"
+              className="font-semibold tracking-tight md:hidden"
+            >
+              Finance
+            </Link>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              <SignOutButton />
+              <MobileNav items={NAV_ITEMS} email={user.email ?? undefined} />
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
+          {children}
+        </main>
+      </div>
 
       {/* Floating assistant is available on every authenticated page. */}
       <AssistantLauncher configured={isAssistantConfigured()} />

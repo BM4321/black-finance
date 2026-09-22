@@ -23,7 +23,7 @@ export function StatCard({
           : "text-foreground";
 
   return (
-    <Card className="px-4 py-3">
+    <Card className="px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </span>

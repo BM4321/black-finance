@@ -49,9 +49,12 @@ export function TransactionList({
   }
 
   return (
-    <ul className="divide-y divide-border">
+    <ul className="stagger divide-y divide-border">
       {transactions.map((t) => (
-        <li key={t.id} className="flex items-start gap-3 px-4 py-3">
+        <li
+          key={t.id}
+          className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-muted/50"
+        >
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-medium">

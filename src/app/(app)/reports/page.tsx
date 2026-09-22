@@ -1,12 +1,12 @@
 import Link from "next/link";
 
 import {
-  AccountBalancesChart,
-  IncomeExpenseChart,
-  NetWorthChart,
-  SavingsRateChart,
-  SpendingByCategoryChart,
-} from "@/components/reports/charts";
+  AccountBalancesSection,
+  IncomeExpenseSection,
+  NetWorthSection,
+  SavingsRateSection,
+  SpendingSection,
+} from "@/components/reports/sections";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
@@ -70,9 +70,6 @@ export default async function ReportsPage({
     months: range.months,
   });
 
-  const { weekly } = { weekly: null };
-  void weekly;
-
   const totalSpending = data.spendingByCategory.reduce(
     (acc, row) => acc + Number(row.total),
     0,
@@ -80,13 +77,9 @@ export default async function ReportsPage({
   const topCategories = data.spendingByCategory.slice(0, 6);
 
   // Income/expense change across the loaded period (latest vs previous month).
-  const monthsWithData = data.monthly;
-  const latest = monthsWithData.at(-1);
-  const previous = monthsWithData.at(-2);
-  const incomeChange = changeRatio(
-    latest?.income ?? "0",
-    previous?.income ?? "0",
-  );
+  const latest = data.monthly.at(-1);
+  const previous = data.monthly.at(-2);
+  const incomeChange = changeRatio(latest?.income ?? "0", previous?.income ?? "0");
   const expenseChange = changeRatio(
     latest?.expense ?? "0",
     previous?.expense ?? "0",
@@ -127,8 +120,8 @@ export default async function ReportsPage({
       />
 
       {/* Headline comparisons ------------------------------------------- */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="px-4 py-3">
+      <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card className="px-4 py-3 transition-shadow hover:shadow-md">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Income (latest month)
           </span>
@@ -139,7 +132,7 @@ export default async function ReportsPage({
             {formatChange(incomeChange)} vs previous month
           </span>
         </Card>
-        <Card className="px-4 py-3">
+        <Card className="px-4 py-3 transition-shadow hover:shadow-md">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Expenses (latest month)
           </span>
@@ -150,7 +143,7 @@ export default async function ReportsPage({
             {formatChange(expenseChange)} vs previous month
           </span>
         </Card>
-        <Card className="px-4 py-3">
+        <Card className="px-4 py-3 transition-shadow hover:shadow-md">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Net worth today
           </span>
@@ -164,70 +157,41 @@ export default async function ReportsPage({
       </div>
 
       {/* Income vs expenses --------------------------------------------- */}
-      <Card className="p-4">
-        <h2 className="mb-3 text-sm font-semibold">Income vs expenses</h2>
-        <IncomeExpenseChart data={data.monthly} />
+      <Card className="animate-fade-up p-4">
+        <IncomeExpenseSection data={data.monthly} />
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Savings rate -------------------------------------------------- */}
-        <Card className="p-4">
-          <h2 className="mb-1 text-sm font-semibold">Savings rate</h2>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Share of income kept each month. Months with no income are skipped.
-          </p>
-          <SavingsRateChart data={data.monthly} />
+        <Card className="animate-fade-up p-4">
+          <SavingsRateSection data={data.monthly} />
         </Card>
-
-        {/* Net worth over time ------------------------------------------ */}
-        <Card className="p-4">
-          <h2 className="mb-1 text-sm font-semibold">Net worth over time</h2>
-          <p className="mb-3 text-xs text-muted-foreground">
-            Accounts only. Investments and debts have no historical value, so
-            they are excluded from this trend.
-          </p>
-          <NetWorthChart data={data.netWorthHistory} />
+        <Card className="animate-fade-up p-4">
+          <NetWorthSection data={data.netWorthHistory} />
         </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Spending by category ---------------------------------------- */}
-        <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">
-            Spending by category · {range.label.toLowerCase()}
-          </h2>
-          {data.spendingByCategory.length === 0 ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">
-              No expenses in this period.
-            </p>
-          ) : (
-            <SpendingByCategoryChart data={data.spendingByCategory} />
-          )}
+        <Card className="animate-fade-up p-4">
+          <SpendingSection
+            data={data.spendingByCategory}
+            title={`Spending by category · ${range.label.toLowerCase()}`}
+          />
         </Card>
-
-        {/* Account balances -------------------------------------------- */}
-        <Card className="p-4">
-          <h2 className="mb-3 text-sm font-semibold">Account balances</h2>
-          {data.accounts.length === 0 ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">
-              No accounts yet.
-            </p>
-          ) : (
-            <AccountBalancesChart data={data.accounts} />
-          )}
+        <Card className="animate-fade-up p-4">
+          <AccountBalancesSection data={data.accounts} />
         </Card>
       </div>
 
       {/* Top categories + budget performance ---------------------------- */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="p-4">
+        <Card className="animate-fade-up p-4">
           <h2 className="mb-3 text-sm font-semibold">Top categories</h2>
           {topCategories.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               No expenses in this period.
             </p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="stagger space-y-3">
               {topCategories.map((row) => {
                 const share = shareOfTotal(row.total, String(totalSpending));
                 return (
@@ -243,7 +207,7 @@ export default async function ReportsPage({
                     </div>
                     <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
                       <div
-                        className="h-full rounded-full bg-primary"
+                        className="h-full rounded-full bg-primary transition-all duration-700"
                         style={{ width: `${Math.min(100, (share ?? 0) * 100)}%` }}
                       />
                     </div>
@@ -254,7 +218,7 @@ export default async function ReportsPage({
           )}
         </Card>
 
-        <Card className="p-4">
+        <Card className="animate-fade-up p-4">
           <h2 className="mb-1 text-sm font-semibold">Budget performance</h2>
           <p className="mb-3 text-xs text-muted-foreground">
             {monthLabel(data.budgets.periodMonth)}
@@ -265,16 +229,12 @@ export default async function ReportsPage({
             </p>
           ) : (
             <>
-              <div className="mb-4 flex items-center gap-4 text-sm">
-                <span className="text-positive">
-                  {budgetHealth.safe} on track
-                </span>
+              <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <span className="text-positive">{budgetHealth.safe} on track</span>
                 <span className="text-warning">
                   {budgetHealth.warning} near limit
                 </span>
-                <span className="text-negative">
-                  {budgetHealth.over} over
-                </span>
+                <span className="text-negative">{budgetHealth.over} over</span>
               </div>
               <div className="mb-4 flex justify-between text-sm">
                 <span className="text-muted-foreground">Total spent</span>
@@ -283,7 +243,7 @@ export default async function ReportsPage({
                   {formatMoney(data.budgets.totalBudgeted)}
                 </span>
               </div>
-              <ul className="space-y-2">
+              <ul className="stagger space-y-2">
                 {data.budgets.items.map((item) => (
                   <li key={item.itemId}>
                     <div className="flex items-baseline justify-between text-sm">
@@ -294,7 +254,7 @@ export default async function ReportsPage({
                     </div>
                     <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
                       <div
-                        className={`h-full rounded-full ${
+                        className={`h-full rounded-full transition-all duration-700 ${
                           item.percentUsed > 100
                             ? "bg-negative"
                             : item.percentUsed >= 80
