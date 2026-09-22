@@ -5,6 +5,9 @@ import {
   getMonthlySummary,
   getSpendingByCategory,
 } from "@/lib/data/dashboard";
+import { listDebts } from "@/lib/data/debts";
+import { listGoals } from "@/lib/data/goals";
+import { listHoldings } from "@/lib/data/investments";
 import { getTransactions } from "@/lib/data/transactions";
 
 import type { AiClient, ResolvedPeriod, RetrievalProvider, RetrievalSection } from "./types";
@@ -37,6 +40,9 @@ export const accountsProvider: RetrievalProvider = {
       data: {
         spendable: balances.spendable,
         savings: balances.savings,
+        investments: balances.investments,
+        owedToMe: balances.owedToMe,
+        owedByMe: balances.owedByMe,
         netWorth: balances.netWorth,
         currency: "TZS",
         accounts: accounts.map((account) => ({
@@ -186,10 +192,122 @@ export const transactionSampleProvider: RetrievalProvider = {
   },
 };
 
+/**
+ * Savings goals with derived progress, plus what has been set aside in total.
+ *
+ * Progress is computed by the database (`goal_progress`), so the model is
+ * given finished figures rather than asked to divide.
+ */
+export const goalsProvider: RetrievalProvider = {
+  id: "goals",
+  async run(supabase: AiClient): Promise<RetrievalSection> {
+    const summary = await listGoals(supabase);
+    const active = summary.active;
+
+    return {
+      id: "goals",
+      title: "Savings goals",
+      source: { label: "goals", count: active.length },
+      data: {
+        totalSaved: summary.totalSaved,
+        totalTarget: summary.totalTarget,
+        activeGoals: active.map((goal) => ({
+          name: goal.name,
+          target: String(goal.target_amount),
+          saved: String(goal.current_amount),
+          remaining: String(goal.remaining),
+          percentComplete: goal.percent_complete,
+          targetDate: goal.target_date,
+        })),
+        archivedCount: summary.archived.length,
+      },
+    };
+  },
+};
+
+/**
+ * Investment holdings with their derived cost, market value and gain.
+ *
+ * A holding's current value is updated manually, so it is reported as-is; the
+ * model is told not to treat it as a live market quote.
+ */
+export const investmentsProvider: RetrievalProvider = {
+  id: "investments",
+  async run(supabase: AiClient): Promise<RetrievalSection> {
+    const portfolio = await listHoldings(supabase);
+    const active = portfolio.active;
+
+    return {
+      id: "investments",
+      title: "Investments",
+      source: { label: "holdings", count: active.length },
+      data: {
+        totalValue: portfolio.totalValue,
+        totalCost: portfolio.totalCost,
+        totalGain: portfolio.totalGain,
+        note: "Current values are entered manually, not live market prices.",
+        holdings: active.map((holding) => ({
+          name: holding.name,
+          assetType: holding.asset_type,
+          quantity: String(holding.quantity),
+          costBasis: String(holding.cost_basis),
+          marketValue: String(holding.market_value),
+          gain: String(holding.gain),
+          purchaseDate: holding.purchase_date,
+        })),
+        archivedCount: portfolio.archived.length,
+      },
+    };
+  },
+};
+
+/**
+ * Open debts by direction, plus totals and the net position.
+ *
+ * Only open debts are listed as outstanding; settled and written-off debts are
+ * summarised by count. `status` is derived by the database.
+ */
+export const debtsProvider: RetrievalProvider = {
+  id: "debts",
+  async run(supabase: AiClient): Promise<RetrievalSection> {
+    const summary = await listDebts(supabase);
+
+    return {
+      id: "debts",
+      title: "Debts",
+      source: {
+        label: "debts",
+        count: summary.owedByMe.length + summary.owedToMe.length,
+      },
+      data: {
+        totalOwedByMe: summary.totalOwedByMe,
+        totalOwedToMe: summary.totalOwedToMe,
+        net: summary.net,
+        owedByMe: summary.owedByMe.map((debt) => ({
+          counterparty: debt.counterparty,
+          principal: String(debt.principal),
+          outstanding: String(debt.remaining_amount),
+          dueDate: debt.due_date,
+        })),
+        owedToMe: summary.owedToMe.map((debt) => ({
+          counterparty: debt.counterparty,
+          principal: String(debt.principal),
+          outstanding: String(debt.remaining_amount),
+          dueDate: debt.due_date,
+        })),
+        closedCount: summary.closed.length,
+      },
+    };
+  },
+};
+
 /** All registered providers. Order affects prompt order, not correctness. */
 export const ALL_PROVIDERS: RetrievalProvider[] = [
   accountsProvider,
   periodSummaryProvider,
   budgetProvider,
+  goalsProvider,
+  investmentsProvider,
+  debtsProvider,
   transactionSampleProvider,
 ];

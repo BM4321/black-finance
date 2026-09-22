@@ -1,13 +1,21 @@
 import Link from "next/link";
 
+import { StatCard } from "@/components/dashboard/stat-card";
+import {
+  BudgetHealth,
+  CashFlowSnapshot,
+  NetWorthComposition,
+  TopSpendingCategories,
+} from "@/components/dashboard/widgets";
 import {
   IncomeExpenseChart,
-  SpendingByCategoryChart,
-} from "@/components/dashboard/charts";
-import { StatCard } from "@/components/dashboard/stat-card";
+  SavingsRateChart,
+  SpendingPieChart,
+} from "@/components/reports/charts";
 import { TransactionList } from "@/components/transactions/transaction-list";
 import { Card } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
+import { getBudgetOverview, monthStart } from "@/lib/data/budgets";
 import {
   getBalanceBreakdown,
   getMonthlySummary,
@@ -17,7 +25,7 @@ import { listGoals } from "@/lib/data/goals";
 import { getTransactions } from "@/lib/data/transactions";
 import { calculateSavingsRate, formatSavingsRate } from "@/lib/finance/health";
 import { goalProgressWidth } from "@/lib/finance/goals";
-import { formatMoney } from "@/lib/finance/money";
+import { formatMoney, sumAmounts } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Dashboard" };
@@ -38,20 +46,33 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { from, to } = currentMonthRange();
 
-  const [balances, monthly, spending, recent, goals] = await Promise.all([
-    getBalanceBreakdown(supabase),
-    getMonthlySummary(supabase, 6),
-    getSpendingByCategory(supabase, from, to),
-    getTransactions(supabase, { page: 1 }),
-    listGoals(supabase),
-  ]);
+  const [balances, monthly, spending, recent, goals, budgets] =
+    await Promise.all([
+      getBalanceBreakdown(supabase),
+      getMonthlySummary(supabase, 6),
+      getSpendingByCategory(supabase, from, to),
+      getTransactions(supabase, { page: 1 }),
+      listGoals(supabase),
+      getBudgetOverview(supabase, monthStart()),
+    ]);
 
-  // This month is the last bucket in the ordered series.
+  // This month is the last bucket in the ordered series; last month the one
+  // before it.
   const thisMonth = monthly.at(-1);
+  const lastMonth = monthly.at(-2);
   const income = thisMonth?.income ?? "0";
   const expense = thisMonth?.expense ?? "0";
   const savings = thisMonth?.savings ?? "0";
   const savingsRate = calculateSavingsRate(income, expense);
+
+  const totalSpending = sumAmounts(spending.map((row) => row.total));
+
+  // Net debt position: money owed to me minus money I owe.
+  const debtNet = sumAmounts([
+    balances.owedToMe,
+    `-${balances.owedByMe}`,
+  ]);
+  const hasDebts = Number(balances.owedToMe) !== 0 || Number(balances.owedByMe) !== 0;
 
   return (
     <div className="space-y-6">
@@ -71,9 +92,9 @@ export default async function DashboardPage() {
       </div>
 
       {/* Headline numbers -------------------------------------------------- */}
-      {/* Balances first: spendable and savings are shown separately so money
-          set aside in savings accounts is never mixed into everyday cash. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Balances first: spendable, savings and investments are shown
+          separately so money set aside is never mixed into everyday cash. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Spendable balance"
           value={formatMoney(balances.spendable)}
@@ -86,9 +107,22 @@ export default async function DashboardPage() {
           tone="positive"
         />
         <StatCard
+          label="Investments"
+          value={formatMoney(balances.investments)}
+          hint="Market value of holdings"
+        />
+        {hasDebts && (
+          <StatCard
+            label="Debts (net)"
+            value={formatMoney(debtNet)}
+            hint={`Owed to me ${formatMoney(balances.owedToMe)} · I owe ${formatMoney(balances.owedByMe)}`}
+            tone={Number(debtNet) < 0 ? "negative" : "positive"}
+          />
+        )}
+        <StatCard
           label="Net worth"
           value={formatMoney(balances.netWorth)}
-          hint="Spendable + savings"
+          hint="Spendable + savings + investments + debts"
         />
         <StatCard
           label="Income this month"
@@ -127,10 +161,44 @@ export default async function DashboardPage() {
               No expenses recorded this month.
             </p>
           ) : (
-            <SpendingByCategoryChart data={spending} />
+            <SpendingPieChart data={spending} />
           )}
         </Card>
       </div>
+
+      {/* Insight widgets --------------------------------------------------- */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <NetWorthComposition
+          spendable={balances.spendable}
+          savings={balances.savings}
+          investments={balances.investments}
+          owedToMe={balances.owedToMe}
+          owedByMe={balances.owedByMe}
+          netWorth={balances.netWorth}
+        />
+        <CashFlowSnapshot
+          income={income}
+          expense={expense}
+          savings={savings}
+          previousIncome={lastMonth?.income ?? "0"}
+          previousExpense={lastMonth?.expense ?? "0"}
+        />
+        <TopSpendingCategories data={spending} total={totalSpending} />
+        <BudgetHealth
+          items={budgets.items}
+          totalSpent={budgets.totalSpent}
+          totalBudgeted={budgets.totalBudgeted}
+        />
+      </div>
+
+      {/* Savings rate ------------------------------------------------------ */}
+      <Card className="p-4">
+        <h2 className="mb-1 text-sm font-semibold">Savings rate · last 6 months</h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Share of income kept each month. Months with no income are skipped.
+        </p>
+        <SavingsRateChart data={monthly} />
+      </Card>
 
       {/* Recent transactions ---------------------------------------------- */}
       <Card className="overflow-hidden">

@@ -63,6 +63,27 @@ describe("describeSources", () => {
       "No matching data was found for this question.",
     );
   });
+
+  it("singularises a single item", () => {
+    const one = {
+      ...context,
+      sections: [
+        { ...context.sections[0], source: { label: "goals", count: 1 } },
+      ],
+    };
+    expect(describeSources(one)).toBe("Based on 1 goal.");
+  });
+
+  it("singularises while keeping counts pluralised otherwise", () => {
+    const mixed = {
+      ...context,
+      sections: [
+        { ...context.sections[0], source: { label: "goals", count: 1 } },
+        { ...context.sections[1], source: { label: "holdings", count: 3 } },
+      ],
+    };
+    expect(describeSources(mixed)).toBe("Based on 1 goal and 3 holdings.");
+  });
 });
 
 describe("buildContextBlock", () => {

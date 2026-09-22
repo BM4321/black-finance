@@ -18,12 +18,30 @@ const PROTECTED_PREFIXES = [
   "/transactions",
   "/budgets",
   "/goals",
+  "/investments",
+  "/debts",
   "/reports",
 ];
 const AUTH_ROUTES = ["/login", "/signup"];
 
+/**
+ * Build a redirect that preserves the cookies `updateSession` set on the
+ * original response.
+ *
+ * This is essential: the refreshed Supabase auth cookies (and the idle-clock
+ * cookie) live on `response`. A bare `NextResponse.redirect()` would drop them
+ * and log the user out intermittently.
+ */
+function redirectWithCookies(url: URL, from: NextResponse) {
+  const redirect = NextResponse.redirect(url);
+  for (const cookie of from.cookies.getAll()) {
+    redirect.cookies.set(cookie);
+  }
+  return redirect;
+}
+
 export async function proxy(request: NextRequest) {
-  const { response, user } = await updateSession(request);
+  const { response, user, expired } = await updateSession(request);
   const { pathname } = request.nextUrl;
 
   const isProtected = PROTECTED_PREFIXES.some(
@@ -31,19 +49,30 @@ export async function proxy(request: NextRequest) {
   );
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
 
+  // The idle timeout fired: send the user to sign in with an explanation, and
+  // remember where they were so they can pick up where they left off.
+  if (expired && !isAuthRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = "";
+    url.searchParams.set("expired", "1");
+    if (isProtected) url.searchParams.set("redirectTo", pathname);
+    return redirectWithCookies(url, response);
+  }
+
   if (isProtected && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
     url.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(url);
+    return redirectWithCookies(url, response);
   }
 
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     url.search = "";
-    return NextResponse.redirect(url);
+    return redirectWithCookies(url, response);
   }
 
   return response;

@@ -76,16 +76,22 @@ export type BalanceBreakdown = {
   spendable: string;
   /** Balances of savings-type accounts only. */
   savings: string;
-  /** spendable + savings. */
+  /** Market value of non-archived investment holdings. */
+  investments: string;
+  /** Open money owed to the user (an asset). */
+  owedToMe: string;
+  /** Open money the user owes (a liability). */
+  owedByMe: string;
+  /** spendable + savings + investments + owedToMe - owedByMe. */
   netWorth: string;
 };
 
 /**
- * Non-archived balances split into spendable vs savings, plus net worth.
+ * Non-archived balances split into spendable, savings and investments, plus
+ * open debts and net worth.
  *
- * All three come from the same database aggregate, so they can never disagree
- * (net worth is exactly spendable + savings). Values are re-summed exactly for
- * consistency with every other money figure.
+ * All figures come from one database aggregate, so they can never disagree
+ * (net worth is exactly the sum with debts signed).
  */
 export async function getBalanceBreakdown(
   supabase: Client,
@@ -97,6 +103,9 @@ export async function getBalanceBreakdown(
   return {
     spendable: sumAmounts([toDecimal(row?.spendable)]),
     savings: sumAmounts([toDecimal(row?.savings)]),
+    investments: sumAmounts([toDecimal(row?.investments)]),
+    owedToMe: sumAmounts([toDecimal(row?.owed_to_me)]),
+    owedByMe: sumAmounts([toDecimal(row?.owed_by_me)]),
     netWorth: sumAmounts([toDecimal(row?.net_worth)]),
   };
 }

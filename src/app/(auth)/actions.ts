@@ -1,8 +1,10 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { safeRedirect } from "@/lib/redirect";
+import { ACTIVITY_COOKIE } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { signInSchema, signUpSchema } from "@/lib/validation/auth";
 
@@ -137,5 +139,10 @@ export async function signOut(): Promise<void> {
     // the login screen. A stuck logged-in UI is worse than an unconfirmed
     // server-side logout.
   }
+
+  // Clear the idle clock so a fresh sign-in starts a new window.
+  const cookieStore = await cookies();
+  cookieStore.delete(ACTIVITY_COOKIE);
+
   redirect("/login");
 }

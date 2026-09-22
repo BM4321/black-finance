@@ -1408,7 +1408,13 @@ comment on function public.get_transaction_totals is
 -- SECURITY INVOKER, so RLS on the underlying view still applies.
 -- ============================================================================
 
-create or replace function public.get_balance_breakdown()
+-- Dropped and recreated rather than `create or replace`: later migrations
+-- (0017, 0020) change this function's return signature, and `create or replace`
+-- cannot do that. Dropping first keeps this file idempotent when it is replayed
+-- from apply_all.sql against a database that already has a newer shape.
+drop function if exists public.get_balance_breakdown();
+
+create function public.get_balance_breakdown()
 returns table (
   spendable numeric,
   savings   numeric,
@@ -1427,3 +1433,532 @@ $$;
 
 comment on function public.get_balance_breakdown is
   'Non-archived balances split into spendable vs savings accounts, plus net worth. Respects RLS.';
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0015_investments.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0015_investments.sql
+--
+-- Investment tracking (MVP): simple holdings with a manually-updated current
+-- value.
+--
+-- Model decision: a holding is ONE row (name, asset type, quantity, purchase
+-- price/date, current value). This matches the MVP fields exactly and keeps
+-- entry fast. A buy/sell ledger with derived quantity/cost basis is a future
+-- upgrade and would be additive (an investment_transactions table plus a view),
+-- not a rewrite of this table.
+--
+-- IMPORTANT: an investment is not a spending category. Buying an investment
+-- moves value from cash into an asset; it is not consumption. Investments live
+-- in their own table and are never counted as expenses. They DO contribute to
+-- net worth, alongside spendable and savings balances.
+--
+-- `current_value` is nullable: a holding whose current value is unknown falls
+-- back to cost (quantity * purchase_price) in the derived view, so net worth
+-- never silently drops the holding. When set, it wins.
+--
+-- Ownership is direct (user_id) with RLS, like every other table.
+-- ============================================================================
+
+create table if not exists public.investments (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references auth.users (id) on delete cascade,
+  name            text not null check (length(trim(name)) between 1 and 120),
+  asset_type      text not null default 'other'
+                    check (asset_type in ('stock','bond','fund','real_estate','crypto','other')),
+  quantity        numeric(19, 8) not null default 1 check (quantity >= 0),
+  -- Price per unit at purchase. Non-negative; a free acquisition is 0.
+  purchase_price  numeric(19, 4) not null default 0 check (purchase_price >= 0),
+  purchase_date   date,
+  -- Manually-maintained market value of the whole holding. Optional.
+  current_value   numeric(19, 4) check (current_value >= 0),
+  notes           text,
+  is_archived     boolean not null default false,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+
+  unique (id, user_id)
+);
+
+create index if not exists investments_user_id_idx on public.investments (user_id);
+
+-- A user cannot have two *active* holdings with the same name. Archived ones
+-- are exempt so a name can be reused.
+create unique index if not exists investments_user_name_active_idx
+  on public.investments (user_id, name)
+  where not is_archived;
+
+drop trigger if exists investments_set_updated_at on public.investments;
+create trigger investments_set_updated_at
+  before update on public.investments
+  for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- investment_holdings view
+--
+-- Derives cost basis, market value and gain/loss from the stored fields.
+--   cost_basis  = quantity * purchase_price
+--   market_value = current_value when set, else cost_basis
+--   gain        = market_value - cost_basis
+--
+-- `security_invoker = true` so the caller's RLS policies apply (a view without
+-- it runs as its owner and would leak every user's holdings).
+-- ---------------------------------------------------------------------------
+create or replace view public.investment_holdings
+with (security_invoker = true)
+as
+select
+  i.id,
+  i.user_id,
+  i.name,
+  i.asset_type,
+  i.quantity,
+  i.purchase_price,
+  i.purchase_date,
+  i.current_value,
+  i.notes,
+  i.is_archived,
+  i.created_at,
+  i.updated_at,
+  round(i.quantity * i.purchase_price, 4)                       as cost_basis,
+  round(coalesce(i.current_value, i.quantity * i.purchase_price), 4) as market_value,
+  round(coalesce(i.current_value, i.quantity * i.purchase_price)
+        - i.quantity * i.purchase_price, 4)                     as gain
+from public.investments i;
+
+comment on view public.investment_holdings is
+  'Investment holdings with derived cost basis, market value and gain. security_invoker=true so RLS applies.';
+
+-- ---------------------------------------------------------------------------
+-- Portfolio total for the dashboard/net worth.
+--
+-- SECURITY INVOKER, so RLS on the view applies. Uses market_value (which falls
+-- back to cost), so an unpriced holding still counts.
+-- ---------------------------------------------------------------------------
+create or replace function public.get_portfolio_value()
+returns numeric
+language sql
+stable
+as $$
+  select coalesce(sum(market_value), 0)
+  from public.investment_holdings
+  where not is_archived;
+$$;
+
+comment on function public.get_portfolio_value is
+  'Total market value of non-archived investment holdings. Respects RLS.';
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0016_investment_rls.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0016_investment_rls.sql
+--
+-- Row Level Security for investments. Same ownership rule as every other table
+-- (`user_id = auth.uid()`). Without policies, RLS denies everything.
+-- ============================================================================
+
+alter table public.investments enable row level security;
+
+drop policy if exists "investments_select_own" on public.investments;
+create policy "investments_select_own"
+  on public.investments for select
+  using (user_id = auth.uid());
+
+drop policy if exists "investments_insert_own" on public.investments;
+create policy "investments_insert_own"
+  on public.investments for insert
+  with check (user_id = auth.uid());
+
+drop policy if exists "investments_update_own" on public.investments;
+create policy "investments_update_own"
+  on public.investments for update
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists "investments_delete_own" on public.investments;
+create policy "investments_delete_own"
+  on public.investments for delete
+  using (user_id = auth.uid());
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0017_net_worth_with_investments.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0017_net_worth_with_investments.sql
+--
+-- Investments contribute to net worth. This extends the balance breakdown with
+-- an `investments` figure and redefines net worth as:
+--
+--   net_worth = spendable + savings + investments
+--
+-- The change is a new migration rather than an edit to 0014 because the return
+-- signature of `get_balance_breakdown` changes; Postgres cannot `create or
+-- replace` a function with a different return type, so it is dropped first.
+--
+-- `get_net_worth` is redefined the same way, so there is a single consistent
+-- definition of net worth for every caller (dashboard, assistant).
+--
+-- Both read `account_balances` and `investment_holdings`, which are
+-- security_invoker and already RLS-scoped, so authorization is unchanged.
+-- ============================================================================
+
+drop function if exists public.get_balance_breakdown();
+
+create function public.get_balance_breakdown()
+returns table (
+  spendable   numeric,
+  savings     numeric,
+  investments numeric,
+  net_worth   numeric
+)
+language sql
+stable
+as $$
+  with account_totals as (
+    select
+      coalesce(sum(current_balance) filter (where type <> 'savings'), 0) as spendable,
+      coalesce(sum(current_balance) filter (where type =  'savings'), 0) as savings
+    from public.account_balances
+    where not is_archived
+  ),
+  portfolio as (
+    select coalesce(sum(market_value), 0) as investments
+    from public.investment_holdings
+    where not is_archived
+  )
+  select
+    a.spendable,
+    a.savings,
+    p.investments,
+    a.spendable + a.savings + p.investments as net_worth
+  from account_totals a, portfolio p;
+$$;
+
+comment on function public.get_balance_breakdown is
+  'Non-archived balances split into spendable, savings and investments, plus net worth (their sum). Respects RLS.';
+
+-- Redefine net worth to match, so no caller sees a different total.
+create or replace function public.get_net_worth()
+returns numeric
+language sql
+stable
+as $$
+  select
+    coalesce((
+      select sum(current_balance)
+      from public.account_balances
+      where not is_archived
+    ), 0)
+    + coalesce((
+      select sum(market_value)
+      from public.investment_holdings
+      where not is_archived
+    ), 0);
+$$;
+
+comment on function public.get_net_worth is
+  'Net worth = non-archived account balances + investment market value. Respects RLS.';
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0018_debts.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0018_debts.sql
+--
+-- Debt tracking (MVP): money owed by me, and money owed to me.
+--
+-- Model decision: a debt is ONE row holding the original `principal` and a
+-- manually-maintained `remaining_amount`. This matches the MVP fields
+-- (person/entity, amount, date, due date, status, notes) and keeps updates to a
+-- single field. A payments ledger with a derived balance is a future upgrade
+-- and would be additive, not a rewrite.
+--
+-- STATUS IS DERIVED, never stored. Storing both a status and a remaining amount
+-- would create two sources of truth that can disagree (status 'open' with 0
+-- remaining). Instead the view derives it, exactly as goal progress is derived
+-- from contributions:
+--
+--   written_off  -> is_written_off = true
+--   settled      -> remaining_amount <= 0
+--   open         -> otherwise
+--
+-- IMPORTANT: a debt is not a transaction and not an expense. Lending or
+-- borrowing money is not consumption; debts live in their own table and are
+-- never counted in expense totals. Open debts DO affect net worth:
+-- money owed to me is an asset (+), money I owe is a liability (-).
+--
+-- Ownership is direct (user_id) with RLS, like every other table.
+-- ============================================================================
+
+create table if not exists public.debts (
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references auth.users (id) on delete cascade,
+  direction        text not null
+                     check (direction in ('owed_by_me', 'owed_to_me')),
+  counterparty     text not null check (length(trim(counterparty)) between 1 and 120),
+  -- Original amount. Always positive; direction carries the sign.
+  principal        numeric(19, 4) not null check (principal > 0),
+  -- Outstanding amount, updated by the user as they pay or are paid.
+  remaining_amount numeric(19, 4) not null check (remaining_amount >= 0),
+  started_on       date not null default current_date,
+  due_date         date,
+  is_written_off   boolean not null default false,
+  notes            text,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+
+  unique (id, user_id)
+);
+
+create index if not exists debts_user_id_idx on public.debts (user_id);
+create index if not exists debts_user_direction_idx
+  on public.debts (user_id, direction);
+
+drop trigger if exists debts_set_updated_at on public.debts;
+create trigger debts_set_updated_at
+  before update on public.debts
+  for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- debt_details view
+--
+-- Adds the derived `status` and `settled_amount` (how much has been repaid or
+-- collected). `security_invoker = true` so the caller's RLS policies apply.
+-- ---------------------------------------------------------------------------
+create or replace view public.debt_details
+with (security_invoker = true)
+as
+select
+  d.id,
+  d.user_id,
+  d.direction,
+  d.counterparty,
+  d.principal,
+  d.remaining_amount,
+  d.started_on,
+  d.due_date,
+  d.is_written_off,
+  d.notes,
+  d.created_at,
+  d.updated_at,
+  round(d.principal - d.remaining_amount, 4) as settled_amount,
+  case
+    when d.is_written_off then 'written_off'
+    when d.remaining_amount <= 0 then 'settled'
+    else 'open'
+  end as status
+from public.debts d;
+
+comment on view public.debt_details is
+  'Debts with derived status and settled amount. security_invoker=true so RLS applies.';
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0019_debt_rls.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0019_debt_rls.sql
+--
+-- Row Level Security for debts. Same ownership rule as every other table
+-- (`user_id = auth.uid()`). Without policies, RLS denies everything.
+-- ============================================================================
+
+alter table public.debts enable row level security;
+
+drop policy if exists "debts_select_own" on public.debts;
+create policy "debts_select_own"
+  on public.debts for select
+  using (user_id = auth.uid());
+
+drop policy if exists "debts_insert_own" on public.debts;
+create policy "debts_insert_own"
+  on public.debts for insert
+  with check (user_id = auth.uid());
+
+drop policy if exists "debts_update_own" on public.debts;
+create policy "debts_update_own"
+  on public.debts for update
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+drop policy if exists "debts_delete_own" on public.debts;
+create policy "debts_delete_own"
+  on public.debts for delete
+  using (user_id = auth.uid());
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0020_net_worth_with_debts.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0020_net_worth_with_debts.sql
+--
+-- Outstanding debts affect net worth:
+--   owed_to_me  = open money owed to me   (an asset, +)
+--   owed_by_me  = open money I owe        (a liability, -)
+--
+--   net_worth = spendable + savings + investments + owed_to_me - owed_by_me
+--
+-- Only debts that are still OPEN count: settled and written-off debts are
+-- excluded, so paying one off does not leave a phantom liability on the books.
+--
+-- The return signature changes, so `get_balance_breakdown` is dropped and
+-- recreated (Postgres cannot `create or replace` a different return type).
+-- `get_net_worth` is redefined to match, keeping one definition for every
+-- caller (dashboard, assistant).
+--
+-- All sources are security_invoker views, so RLS is unchanged.
+-- ============================================================================
+
+drop function if exists public.get_balance_breakdown();
+
+create function public.get_balance_breakdown()
+returns table (
+  spendable   numeric,
+  savings     numeric,
+  investments numeric,
+  owed_to_me  numeric,
+  owed_by_me  numeric,
+  net_worth   numeric
+)
+language sql
+stable
+as $$
+  with account_totals as (
+    select
+      coalesce(sum(current_balance) filter (where type <> 'savings'), 0) as spendable,
+      coalesce(sum(current_balance) filter (where type =  'savings'), 0) as savings
+    from public.account_balances
+    where not is_archived
+  ),
+  portfolio as (
+    select coalesce(sum(market_value), 0) as investments
+    from public.investment_holdings
+    where not is_archived
+  ),
+  debt_totals as (
+    select
+      coalesce(sum(remaining_amount) filter (where direction = 'owed_to_me'), 0) as owed_to_me,
+      coalesce(sum(remaining_amount) filter (where direction = 'owed_by_me'), 0) as owed_by_me
+    from public.debts
+    -- "open": not written off and still outstanding. Matches debt_details.status.
+    where not is_written_off and remaining_amount > 0
+  )
+  select
+    a.spendable,
+    a.savings,
+    p.investments,
+    d.owed_to_me,
+    d.owed_by_me,
+    a.spendable + a.savings + p.investments + d.owed_to_me - d.owed_by_me as net_worth
+  from account_totals a, portfolio p, debt_totals d;
+$$;
+
+comment on function public.get_balance_breakdown is
+  'Non-archived balances split into spendable, savings and investments, plus open debts, plus net worth. Respects RLS.';
+
+-- Redefine net worth to match, so no caller sees a different total.
+create or replace function public.get_net_worth()
+returns numeric
+language sql
+stable
+as $$
+  select
+    coalesce((select sum(current_balance) from public.account_balances where not is_archived), 0)
+    + coalesce((select sum(market_value) from public.investment_holdings where not is_archived), 0)
+    + coalesce((select sum(remaining_amount) from public.debts where not is_written_off and remaining_amount > 0 and direction = 'owed_to_me'), 0)
+    - coalesce((select sum(remaining_amount) from public.debts where not is_written_off and remaining_amount > 0 and direction = 'owed_by_me'), 0);
+$$;
+
+comment on function public.get_net_worth is
+  'Net worth = account balances + investments + open money owed to me - open money I owe. Respects RLS.';
+
+
+-- >>>>>>>>>>>>>>>>>>>> 0021_net_worth_history.sql <<<<<<<<<<<<<<<<<<<<
+
+-- ============================================================================
+-- 0021_net_worth_history.sql
+--
+-- Month-by-month net worth reconstructed from the ledger.
+--
+-- HONEST SCOPE: only *account* net worth has history. Account balances derive
+-- from opening balances plus dated transactions, so a past month's balance can
+-- be reconstructed exactly. Investments and debts have no dated history (each
+-- holding stores only a single current value), so they cannot be reconstructed
+-- for past months and are deliberately NOT included. The UI labels this series
+-- "accounts only" so the number is never mistaken for total net worth.
+--
+-- Method: for each month start, sum each account's opening_balance plus all
+-- signed transactions with occurred_on < the next month start. This is the same
+-- arithmetic as `account_balances`, evaluated as of a past date. Transfers move
+-- money between accounts, so they cancel out in a per-user total; they are
+-- still applied per-account via the CASE, exactly as the balance view does.
+--
+-- SECURITY INVOKER, so RLS on accounts and transactions applies.
+-- ============================================================================
+
+create or replace function public.get_net_worth_history(
+  p_months integer default 12
+)
+returns table (
+  month_start     date,
+  account_total   numeric
+)
+language sql
+stable
+as $$
+  with bounds as (
+    select date_trunc('month', current_date)::date as this_month
+  ),
+  months as (
+    select generate_series(
+      (select this_month from bounds) - make_interval(months => greatest(p_months, 1) - 1),
+      (select this_month from bounds),
+      interval '1 month'
+    )::date as month_start
+  ),
+  account_openings as (
+    -- Opening balance only counts for accounts that existed at that month's
+    -- start; using created_at keeps a brand-new account from appearing in the
+    -- past with its opening balance.
+    select m.month_start, sum(a.opening_balance) as opening
+    from months m
+    join public.accounts a
+      on a.created_at < (m.month_start + interval '1 month')
+    where not a.is_archived
+    group by m.month_start
+  ),
+  account_movements as (
+    -- Restricted to the same non-archived accounts the opening CTE uses, so
+    -- the two halves of the sum describe the same set of accounts.
+    select
+      m.month_start,
+      coalesce(sum(
+        case
+          when t.type = 'income'   then  t.amount
+          when t.type = 'expense'  then -t.amount
+          -- Transfers net to zero across a user's own accounts (money leaves
+          -- one account and arrives in another), so they add nothing to the
+          -- per-user total. A transfer is a single row, counted once.
+          when t.type = 'transfer' then 0
+          else 0
+        end
+      ), 0) as movement
+    from months m
+    left join public.transactions t
+      on t.occurred_on < (m.month_start + interval '1 month')
+    left join public.accounts a on a.id = t.account_id
+    where t.id is null or not a.is_archived
+    group by m.month_start
+  )
+  select
+    m.month_start,
+    coalesce(o.opening, 0) + coalesce(v.movement, 0) as account_total
+  from months m
+  left join account_openings o  on o.month_start = m.month_start
+  left join account_movements v on v.month_start = m.month_start
+  order by m.month_start;
+$$;
+
+comment on function public.get_net_worth_history is
+  'Reconstructed month-end net worth from account balances only (investments/debts have no history). Respects RLS.';

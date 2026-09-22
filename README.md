@@ -1,7 +1,8 @@
 # Black Finance
 
 A personal finance management app: accounts, transactions, budgets, savings
-goals, a dashboard, and a Gemini-powered assistant grounded in your own data.
+goals, investments, debts, a dashboard, and a Gemini-powered assistant grounded
+in your own data.
 
 ## Getting Started
 
@@ -23,6 +24,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Supabase anon / publishable key (safe; protected by RLS) |
 | `GEMINI_API_KEY` | **Server only** | Google AI Studio key for the assistant |
 | `GEMINI_MODEL` | Server only | Optional model override (defaults to `gemini-3.6-flash`) |
+| `SESSION_IDLE_MINUTES` | Server only | Optional idle timeout in minutes (defaults to `30`) |
 
 `.env.local` is gitignored and is **not** available during a Vercel build.
 

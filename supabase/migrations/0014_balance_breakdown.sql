@@ -19,7 +19,13 @@
 -- SECURITY INVOKER, so RLS on the underlying view still applies.
 -- ============================================================================
 
-create or replace function public.get_balance_breakdown()
+-- Dropped and recreated rather than `create or replace`: later migrations
+-- (0017, 0020) change this function's return signature, and `create or replace`
+-- cannot do that. Dropping first keeps this file idempotent when it is replayed
+-- from apply_all.sql against a database that already has a newer shape.
+drop function if exists public.get_balance_breakdown();
+
+create function public.get_balance_breakdown()
 returns table (
   spendable numeric,
   savings   numeric,

@@ -23,6 +23,11 @@ export type GoalProgress =
   Database["public"]["Views"]["goal_progress"]["Row"];
 export type GoalContribution =
   Database["public"]["Tables"]["goal_contributions"]["Row"];
+export type Investment = Database["public"]["Tables"]["investments"]["Row"];
+export type InvestmentHolding =
+  Database["public"]["Views"]["investment_holdings"]["Row"];
+export type Debt = Database["public"]["Tables"]["debts"]["Row"];
+export type DebtDetail = Database["public"]["Views"]["debt_details"]["Row"];
 
 export type NewAccount = Database["public"]["Tables"]["accounts"]["Insert"];
 export type NewCategory = Database["public"]["Tables"]["categories"]["Insert"];
@@ -60,4 +65,54 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   income: "Income",
   expense: "Expense",
   transfer: "Transfer",
+};
+
+/**
+ * Investment asset types.
+ *
+ * Stored as free text with a CHECK constraint (not a Postgres enum) so adding a
+ * new type later is a data change, not a migration that rewrites the type. The
+ * union below keeps TypeScript in sync at the application edge.
+ */
+export const ASSET_TYPES = [
+  "stock",
+  "bond",
+  "fund",
+  "real_estate",
+  "crypto",
+  "other",
+] as const;
+
+export type AssetType = (typeof ASSET_TYPES)[number];
+
+export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
+  stock: "Stocks",
+  bond: "Bonds",
+  fund: "Funds",
+  real_estate: "Real estate",
+  crypto: "Crypto",
+  other: "Other",
+};
+
+/**
+ * Debt direction and status.
+ *
+ * `status` is derived in the database (see `debt_details`); only `direction` is
+ * stored. Keeping these unions here keeps the application in sync with the
+ * CHECK constraint and the view's CASE expression.
+ */
+export const DEBT_DIRECTIONS = ["owed_by_me", "owed_to_me"] as const;
+export type DebtDirection = (typeof DEBT_DIRECTIONS)[number];
+
+export const DEBT_DIRECTION_LABELS: Record<DebtDirection, string> = {
+  owed_by_me: "I owe",
+  owed_to_me: "Owed to me",
+};
+
+export type DebtStatus = "open" | "settled" | "written_off";
+
+export const DEBT_STATUS_LABELS: Record<DebtStatus, string> = {
+  open: "Open",
+  settled: "Settled",
+  written_off: "Written off",
 };

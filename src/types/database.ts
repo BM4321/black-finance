@@ -200,6 +200,51 @@ export type Database = {
           },
         ]
       }
+      debts: {
+        Row: {
+          counterparty: string
+          created_at: string
+          direction: string
+          due_date: string | null
+          id: string
+          is_written_off: boolean
+          notes: string | null
+          principal: number
+          remaining_amount: number
+          started_on: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          counterparty: string
+          created_at?: string
+          direction: string
+          due_date?: string | null
+          id?: string
+          is_written_off?: boolean
+          notes?: string | null
+          principal: number
+          remaining_amount: number
+          started_on?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          counterparty?: string
+          created_at?: string
+          direction?: string
+          due_date?: string | null
+          id?: string
+          is_written_off?: boolean
+          notes?: string | null
+          principal?: number
+          remaining_amount?: number
+          started_on?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       goals: {
         Row: {
           created_at: string
@@ -231,6 +276,51 @@ export type Database = {
           notes?: string | null
           target_amount?: number
           target_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      investments: {
+        Row: {
+          asset_type: string
+          created_at: string
+          current_value: number | null
+          id: string
+          is_archived: boolean
+          name: string
+          notes: string | null
+          purchase_date: string | null
+          purchase_price: number
+          quantity: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asset_type?: string
+          created_at?: string
+          current_value?: number | null
+          id?: string
+          is_archived?: boolean
+          name: string
+          notes?: string | null
+          purchase_date?: string | null
+          purchase_price?: number
+          quantity?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asset_type?: string
+          created_at?: string
+          current_value?: number | null
+          id?: string
+          is_archived?: boolean
+          name?: string
+          notes?: string | null
+          purchase_date?: string | null
+          purchase_price?: number
+          quantity?: number
           updated_at?: string
           user_id?: string
         }
@@ -341,6 +431,25 @@ export type Database = {
       }
     }
     Views: {
+      debt_details: {
+        Row: {
+          counterparty: string | null
+          created_at: string | null
+          direction: string | null
+          due_date: string | null
+          id: string | null
+          is_written_off: boolean | null
+          notes: string | null
+          principal: number | null
+          remaining_amount: number | null
+          settled_amount: number | null
+          started_on: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       account_balances: {
         Row: {
           account_id: string | null
@@ -369,6 +478,26 @@ export type Database = {
           remaining: number | null
           target_amount: number | null
           target_date: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      investment_holdings: {
+        Row: {
+          asset_type: string | null
+          cost_basis: number | null
+          created_at: string | null
+          current_value: number | null
+          gain: number | null
+          id: string | null
+          is_archived: boolean | null
+          market_value: number | null
+          name: string | null
+          notes: string | null
+          purchase_date: string | null
+          purchase_price: number | null
+          quantity: number | null
           updated_at: string | null
           user_id: string | null
         }
@@ -439,7 +568,10 @@ export type Database = {
       get_balance_breakdown: {
         Args: never
         Returns: {
+          investments: number
           net_worth: number
+          owed_by_me: number
+          owed_to_me: number
           savings: number
           spendable: number
         }[]
@@ -470,6 +602,14 @@ export type Database = {
         }[]
       }
       get_net_worth: { Args: never; Returns: number }
+      get_net_worth_history: {
+        Args: { p_months?: number }
+        Returns: {
+          account_total: number
+          month_start: string
+        }[]
+      }
+      get_portfolio_value: { Args: never; Returns: number }
       get_spending_by_category: {
         Args: { p_date_from?: string; p_date_to?: string }
         Returns: {

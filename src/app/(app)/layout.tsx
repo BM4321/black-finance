@@ -11,6 +11,9 @@ const NAV = [
   { href: "/accounts", label: "Accounts" },
   { href: "/budgets", label: "Budgets" },
   { href: "/goals", label: "Goals" },
+  { href: "/investments", label: "Investments" },
+  { href: "/debts", label: "Debts" },
+  { href: "/reports", label: "Reports" },
 ];
 
 /**
@@ -33,19 +36,19 @@ export default async function AppLayout({
           <Link href="/dashboard" className="font-semibold tracking-tight">
             Finance
           </Link>
-          <nav className="hidden flex-1 items-center gap-1 sm:flex">
+          <nav className="hidden flex-1 items-center gap-1 overflow-x-auto sm:flex">
             {NAV.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+                className="shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
               >
                 {item.label}
               </Link>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="hidden max-w-[16ch] truncate text-xs text-muted-foreground sm:inline">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <span className="hidden max-w-[16ch] truncate text-xs text-muted-foreground lg:inline">
               {user.email}
             </span>
             <SignOutButton />
