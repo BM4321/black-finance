@@ -23,6 +23,29 @@
   --ring: #1f6feb;
 }
 
+/*
+ * Dark "Black Finance" palette. Scoped to a class so it can be adopted one
+ * surface at a time (the landing page first); the token names are unchanged,
+ * so every utility built on them re-themes without edits.
+ */
+.theme-dark {
+  --background: #0b0c0e;
+  --surface: #141518;
+  --surface-muted: #1c1d21;
+  --border: #25272c;
+  --foreground: #eceae4;
+  --muted-foreground: #a8a59c;
+  --primary: #d8b76e;
+  --primary-foreground: #14130f;
+  --positive: #7fd3a4;
+  --negative: #f08a74;
+  --warning: #e6b450;
+  --ring: #d8b76e;
+  background: var(--background);
+  color: var(--foreground);
+  color-scheme: dark;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
