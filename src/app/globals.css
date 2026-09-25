@@ -1,3 +1,5 @@
+/* Cascade order: MUI sits below Tailwind utilities so utilities can adjust it. */
+@layer theme, base, mui, components, utilities;
 @import "tailwindcss";
 
 /*
@@ -5,30 +7,10 @@
  *
  * Kept as CSS variables so a single source of truth drives both Tailwind
  * utilities and plain CSS. Semantic names (surface, muted, positive) rather
- * than literal colours, so a dark theme can be added later without touching
- * every component.
+ * than literal colours. The Black Finance palette is dark; the same values are
+ * mirrored in `src/theme/theme.ts` for Material UI components.
  */
 :root {
-  --background: #f7f8fa;
-  --surface: #ffffff;
-  --surface-muted: #f1f3f6;
-  --border: #e3e6ea;
-  --foreground: #14171c;
-  --muted-foreground: #667085;
-  --primary: #1f6feb;
-  --primary-foreground: #ffffff;
-  --positive: #12805c;
-  --negative: #c0392b;
-  --warning: #b7791f;
-  --ring: #1f6feb;
-}
-
-/*
- * Dark "Black Finance" palette. Scoped to a class so it can be adopted one
- * surface at a time (the landing page first); the token names are unchanged,
- * so every utility built on them re-themes without edits.
- */
-.theme-dark {
   --background: #0b0c0e;
   --surface: #141518;
   --surface-muted: #1c1d21;
@@ -41,8 +23,6 @@
   --negative: #f08a74;
   --warning: #e6b450;
   --ring: #d8b76e;
-  background: var(--background);
-  color: var(--foreground);
   color-scheme: dark;
 }
 

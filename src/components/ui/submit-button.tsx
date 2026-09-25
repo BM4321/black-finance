@@ -14,11 +14,13 @@ export function ConfirmSubmitButton({
   children,
   confirmText,
   variant = "danger",
+  size,
   className,
 }: {
   children: React.ReactNode;
   confirmText: string;
   variant?: ButtonVariant;
+  size?: "small" | "medium" | "large";
   className?: string;
 }) {
   const { pending } = useFormStatus();
@@ -27,6 +29,7 @@ export function ConfirmSubmitButton({
     <Button
       type="submit"
       variant={variant}
+      size={size}
       disabled={pending}
       className={className}
       onClick={(event) => {
@@ -45,17 +48,26 @@ export function SubmitButton({
   children,
   pendingText,
   variant = "primary",
+  size,
   className,
 }: {
   children: React.ReactNode;
   pendingText?: string;
   variant?: ButtonVariant;
+  size?: "small" | "medium" | "large";
   className?: string;
 }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant={variant} disabled={pending} className={className}>
+    <Button
+      type="submit"
+      variant={variant}
+      size={size}
+      loading={pending && !pendingText ? true : undefined}
+      disabled={pending}
+      className={className}
+    >
       {pending && pendingText ? pendingText : children}
     </Button>
   );

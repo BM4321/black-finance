@@ -1,34 +1,54 @@
+import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
 
 import { Card } from "@/components/ui/card";
 
+const TONE_COLOR = {
+  neutral: "text.primary",
+  positive: "success.main",
+  negative: "error.main",
+  muted: "text.secondary",
+} as const;
+
+/** A single headline figure: label, value and an optional hint line. */
 export function StatCard({
   label,
   value,
   hint,
   tone = "neutral",
+  size = "medium",
+  className,
 }: {
   label: string;
   value: ReactNode;
   hint?: string;
-  tone?: "neutral" | "positive" | "negative" | "muted";
+  tone?: keyof typeof TONE_COLOR;
+  size?: "medium" | "large";
+  className?: string;
 }) {
-  const toneClass =
-    tone === "positive"
-      ? "text-positive"
-      : tone === "negative"
-        ? "text-negative"
-        : tone === "muted"
-          ? "text-muted-foreground"
-          : "text-foreground";
-
   return (
-    <Card className="px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <Card className={className} sx={{ px: 2.5, py: 2, "&:hover": { borderColor: "#3a3c42" } }}>
+      <Typography variant="body2" color="text.secondary">
         {label}
-      </span>
-      <p className={`tabular-nums text-xl font-semibold ${toneClass}`}>{value}</p>
-      {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
+      </Typography>
+      <Typography
+        component="p"
+        sx={{
+          mt: 0.5,
+          fontWeight: 600,
+          letterSpacing: "-0.02em",
+          fontSize: size === "large" ? { xs: 32, sm: 40 } : 22,
+          lineHeight: 1.15,
+          color: TONE_COLOR[tone],
+        }}
+      >
+        {value}
+      </Typography>
+      {hint && (
+        <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
+          {hint}
+        </Typography>
+      )}
     </Card>
   );
 }

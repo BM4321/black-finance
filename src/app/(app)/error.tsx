@@ -28,7 +28,7 @@ export default function AppError({
 
   return (
     <div className="mx-auto max-w-lg py-16 text-center">
-      <h1 className="text-xl font-semibold">
+      <h1 className="text-2xl font-semibold tracking-tight">
         {schemaMissing ? "Database isn’t set up yet" : "Something went wrong"}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">

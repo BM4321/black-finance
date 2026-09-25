@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
@@ -22,6 +21,7 @@ import {
 } from "@/lib/finance/goals";
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
+import { LinkButton } from "@/components/ui/link-button";
 
 export const metadata = { title: "Goal" };
 
@@ -64,12 +64,9 @@ export default async function GoalDetailPage({
         subtitle={goal.notes ?? undefined}
         action={
           <div className="flex items-center gap-2">
-            <Link
-              href={`/goals/${goal.id}/edit`}
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:bg-surface-muted"
-            >
+            <LinkButton href={`/goals/${goal.id}/edit`} variant="secondary">
               Edit
-            </Link>
+            </LinkButton>
             <form action={archiveGoalAction}>
               <input type="hidden" name="goalId" value={goal.id} />
               <input
@@ -188,7 +185,7 @@ export default async function GoalDetailPage({
                   <ConfirmSubmitButton
                     confirmText="Remove this contribution? The goal progress will be recalculated."
                     variant="ghost"
-                    className="px-2 py-1 text-xs"
+                    size="small"
                   >
                     Remove
                   </ConfirmSubmitButton>

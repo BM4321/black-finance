@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import { TransactionFilters } from "@/components/transactions/transaction-filters";
 import { TransactionList } from "@/components/transactions/transaction-list";
@@ -14,6 +13,9 @@ import {
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
 import type { TransactionType } from "@/types/domain";
+import AddRounded from "@mui/icons-material/AddRounded";
+import { LinkButton } from "@/components/ui/link-button";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 export const metadata = { title: "Transactions" };
 
@@ -87,44 +89,17 @@ export default async function TransactionsPage({
         title="Transactions"
         subtitle={`${total} transaction${total === 1 ? "" : "s"}`}
         action={
-          <Link
-            href="/transactions/new"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
+          <LinkButton href="/transactions/new" variant="primary" startIcon={<AddRounded />}>
             Add transaction
-          </Link>
+          </LinkButton>
         }
       />
 
       {/* Summary of the filtered set. Totals come from the database. */}
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="px-4 py-3">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Income
-          </span>
-          <p className="tabular-nums text-lg font-semibold text-positive">
-            {formatMoney(totals.income)}
-          </p>
-        </Card>
-        <Card className="px-4 py-3">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Expenses
-          </span>
-          <p className="tabular-nums text-lg font-semibold text-negative">
-            {formatMoney(totals.expense)}
-          </p>
-        </Card>
-        <Card className="px-4 py-3">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Transfers
-          </span>
-          <p className="tabular-nums text-lg font-semibold text-muted-foreground">
-            {formatMoney(totals.transfer)}
-          </p>
-          <span className="text-[11px] text-muted-foreground">
-            Not counted as spending
-          </span>
-        </Card>
+        <StatCard label="Income" value={formatMoney(totals.income)} tone="positive" />
+        <StatCard label="Expenses" value={formatMoney(totals.expense)} tone="negative" />
+        <StatCard label="Transfers" value={formatMoney(totals.transfer)} hint="Not counted as spending" tone="muted" />
       </div>
 
       <div className="mb-4">
@@ -178,11 +153,8 @@ function PageLink({
     );
   }
   return (
-    <Link
-      href={href}
-      className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium transition-colors hover:bg-surface-muted"
-    >
+    <LinkButton href={href} variant="secondary">
       {children}
-    </Link>
+    </LinkButton>
   );
 }

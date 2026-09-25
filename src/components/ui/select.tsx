@@ -1,20 +1,36 @@
+import NativeSelect from "@mui/material/NativeSelect";
+import OutlinedInput from "@mui/material/OutlinedInput";
 import type { SelectHTMLAttributes } from "react";
 
+/**
+ * Select primitive: Material UI's NativeSelect in an outlined field.
+ *
+ * Native on purpose: it submits through FormData like a plain `<select>`, uses
+ * the platform picker on phones, and keeps `<option>` children as the API.
+ */
 export function Select({
-  className = "",
+  className,
   invalid,
   children,
-  ...props
+  value,
+  defaultValue,
+  onChange,
+  disabled,
+  ...native
 }: SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean }) {
   return (
-    <select
-      aria-invalid={invalid || undefined}
-      className={`w-full rounded-lg border bg-surface px-3 py-2 text-sm text-foreground shadow-sm outline-none transition-colors focus:border-primary disabled:opacity-60 ${
-        invalid ? "border-negative" : "border-border"
-      } ${className}`}
-      {...props}
+    <NativeSelect
+      fullWidth
+      className={className}
+      value={value}
+      defaultValue={defaultValue}
+      onChange={onChange}
+      disabled={disabled}
+      error={invalid}
+      input={<OutlinedInput size="small" />}
+      inputProps={{ "aria-invalid": invalid || undefined, ...native }}
     >
       {children}
-    </select>
+    </NativeSelect>
   );
 }

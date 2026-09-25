@@ -5,11 +5,12 @@ import {
   type BudgetStatus,
 } from "@/lib/finance/budgets";
 import type { BudgetStatusRow } from "@/lib/data/budgets";
+import { ProgressBar, type ProgressTone } from "@/components/ui/progress-bar";
 
-const STATUS_BAR: Record<BudgetStatus, string> = {
-  safe: "bg-positive",
-  warning: "bg-warning",
-  over: "bg-negative",
+const STATUS_TONE: Record<BudgetStatus, ProgressTone> = {
+  safe: "positive",
+  warning: "warning",
+  over: "negative",
 };
 
 const STATUS_TEXT: Record<BudgetStatus, string> = {
@@ -40,12 +41,7 @@ export function BudgetRow({ row }: { row: BudgetStatusRow }) {
         </span>
       </div>
 
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-        <div
-          className={`h-full rounded-full ${STATUS_BAR[status]}`}
-          style={{ width: `${progressWidth(row.percentUsed)}%` }}
-        />
-      </div>
+      <ProgressBar className="mt-2" value={progressWidth(row.percentUsed)} tone={STATUS_TONE[status]} />
 
       <div className="mt-1 flex items-center justify-between text-xs">
         <span className="text-muted-foreground">

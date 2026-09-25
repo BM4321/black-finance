@@ -1,3 +1,4 @@
+import Typography from "@mui/material/Typography";
 import Link from "next/link";
 
 import { SignUpForm } from "@/components/auth/sign-up-form";
@@ -8,9 +9,9 @@ export default function SignupPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <Typography component="h1" variant="h5">
           Create your account
-        </h1>
+        </Typography>
         <p className="text-sm text-muted-foreground">
           Start tracking your money in minutes.
         </p>

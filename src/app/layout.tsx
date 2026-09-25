@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Providers } from "@/components/providers";
+
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,14 +16,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Finance",
-    template: "%s · Finance",
+    default: "Black Finance",
+    template: "%s · Black Finance",
   },
   description: "Personal finance management: accounts, budgets, goals and reports.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1f6feb",
+  themeColor: "#0b0c0e",
   width: "device-width",
   initialScale: 1,
 };
@@ -32,7 +34,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

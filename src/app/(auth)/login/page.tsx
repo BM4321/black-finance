@@ -1,3 +1,4 @@
+import Typography from "@mui/material/Typography";
 import Link from "next/link";
 
 import { SignInForm } from "@/components/auth/sign-in-form";
@@ -16,7 +17,9 @@ export default async function LoginPage({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+        <Typography component="h1" variant="h5">
+          Sign in
+        </Typography>
         <p className="text-sm text-muted-foreground">
           Welcome back. Pick up where you left off.
         </p>

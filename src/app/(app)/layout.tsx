@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
-import { SignOutButton } from "@/components/auth/sign-out-button";
+import { BrandMark } from "@/components/ui/brand";
 import { MobileNav } from "@/components/ui/mobile-nav";
 import { Sidebar } from "@/components/ui/sidebar";
 import { isAssistantConfigured } from "@/lib/ai/config";
@@ -28,24 +28,18 @@ export default async function AppLayout({
       <Sidebar items={NAV_ITEMS} email={user.email ?? undefined} />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar: mobile menu and actions. On desktop the sidebar owns the
-            destinations, so this bar is slim. */}
-        <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
-          <div className="flex items-center gap-4 px-4 py-3 sm:px-6">
-            <Link
-              href="/dashboard"
-              className="font-semibold tracking-tight md:hidden"
-            >
-              Finance
+        {/* Mobile top bar: brand and menu. On desktop the sidebar owns
+            navigation, account and sign-out, so no top bar is needed. */}
+        <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur md:hidden">
+          <div className="flex items-center justify-between gap-4 px-4 py-2">
+            <Link href="/dashboard">
+              <BrandMark />
             </Link>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              <SignOutButton />
-              <MobileNav items={NAV_ITEMS} email={user.email ?? undefined} />
-            </div>
+            <MobileNav items={NAV_ITEMS} email={user.email ?? undefined} />
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-28 sm:px-6 md:py-8 lg:px-10">
           {children}
         </main>
       </div>

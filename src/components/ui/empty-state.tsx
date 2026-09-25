@@ -1,3 +1,5 @@
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
 
 /**
@@ -16,14 +18,29 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-12 text-center">
-      <h2 className="text-base font-semibold">{title}</h2>
+    <Paper
+      variant="outlined"
+      sx={{
+        borderStyle: "dashed",
+        borderRadius: "20px",
+        px: 3,
+        py: 6,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        gap: 1,
+      }}
+    >
+      <Typography component="h2" variant="h6">
+        {title}
+      </Typography>
       {description && (
-        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 380 }}>
           {description}
-        </p>
+        </Typography>
       )}
-      {action && <div className="mt-4">{action}</div>}
-    </div>
+      {action && <div className="mt-3">{action}</div>}
+    </Paper>
   );
 }

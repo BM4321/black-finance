@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import { AccountList } from "@/components/accounts/account-list";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -7,6 +6,9 @@ import { requireUser } from "@/lib/auth";
 import { getAccountSummary } from "@/lib/data/accounts";
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
+import AddRounded from "@mui/icons-material/AddRounded";
+import { LinkButton } from "@/components/ui/link-button";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 export const metadata = { title: "Accounts" };
 
@@ -24,12 +26,9 @@ export default async function AccountsPage() {
         title="Accounts"
         subtitle="Where your money lives."
         action={
-          <Link
-            href="/accounts/new"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
+          <LinkButton href="/accounts/new" variant="primary" startIcon={<AddRounded />}>
             Add account
-          </Link>
+          </LinkButton>
         }
       />
 
@@ -38,49 +37,17 @@ export default async function AccountsPage() {
           title="No accounts yet"
           description="Add your first account — cash, bank, mobile money, or anything else you track."
           action={
-            <Link
-              href="/accounts/new"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            >
+            <LinkButton href="/accounts/new" variant="primary" startIcon={<AddRounded />}>
               Add account
-            </Link>
+            </LinkButton>
           }
         />
       ) : (
         <>
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-border bg-surface px-4 py-3 shadow-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Total across accounts
-              </span>
-              <p className="tabular-nums text-2xl font-semibold">
-                {formatMoney(totalBalance)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border bg-surface px-4 py-3 shadow-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Spendable
-              </span>
-              <p className="tabular-nums text-2xl font-semibold">
-                {formatMoney(spendableBalance)}
-              </p>
-              <span className="text-[11px] text-muted-foreground">
-                Excludes savings accounts
-              </span>
-            </div>
-            <div className="rounded-xl border border-border bg-surface px-4 py-3 shadow-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Savings
-              </span>
-              <p className="tabular-nums text-2xl font-semibold text-positive">
-                {formatMoney(savingsBalance)}
-              </p>
-              <span className="text-[11px] text-muted-foreground">
-                {hasSavings
-                  ? "Money set aside"
-                  : "No savings account yet"}
-              </span>
-            </div>
+            <StatCard label="Total across accounts" value={formatMoney(totalBalance)} />
+            <StatCard label="Spendable" value={formatMoney(spendableBalance)} hint="Excludes savings accounts" />
+            <StatCard label="Savings" value={formatMoney(savingsBalance)} hint={`${hasSavings ? "Money set aside" : "No savings account yet"}`} tone="positive" />
           </div>
           <AccountList accounts={accounts} />
         </>

@@ -1,5 +1,8 @@
 "use client";
 
+import SendRounded from "@mui/icons-material/SendRounded";
+import Alert from "@mui/material/Alert";
+import Chip from "@mui/material/Chip";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -129,10 +132,10 @@ export function AssistantChat({
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       {!configured && (
-        <div className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+        <Alert severity="warning" variant="outlined">
           The assistant is not configured. Set <code>GEMINI_API_KEY</code> to
           enable it.
-        </div>
+        </Alert>
       )}
 
       {/* The scroll area grows to fill the panel; the composer stays pinned. */}
@@ -176,10 +179,12 @@ export function AssistantChat({
           }}
           placeholder="Ask about your spending, budgets, or balances…"
           disabled={!configured || pending}
-          className="min-h-[3rem] resize-none"
+          className="min-h-[3rem]"
         />
         <Button
           type="submit"
+          loading={pending}
+          endIcon={<SendRounded fontSize="small" />}
           disabled={!configured || pending || input.trim() === ""}
         >
           {pending ? "Thinking…" : "Send"}
@@ -216,12 +221,12 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 {message.sources
                   .filter((source) => source.count > 0)
                   .map((source) => (
-                    <span
+                    <Chip
                       key={source.label}
-                      className="rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-                    >
-                      {source.count} {source.label}
-                    </span>
+                      size="small"
+                      label={`${source.count} ${source.label}`}
+                      sx={{ height: 20, fontSize: 10, fontWeight: 500 }}
+                    />
                   ))}
               </div>
             )}
@@ -255,7 +260,7 @@ function EmptyConversation({
   disabled: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-border bg-surface px-6 py-10 text-center">
+    <div className="rounded-2xl border border-dashed border-border bg-surface px-6 py-10 text-center">
       <h2 className="text-base font-semibold">
         Ask about your money
       </h2>
@@ -265,15 +270,15 @@ function EmptyConversation({
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         {EXAMPLE_QUESTIONS.map((question) => (
-          <button
+          <Chip
             key={question}
-            type="button"
+            label={question}
+            variant="outlined"
+            clickable
             disabled={disabled}
             onClick={() => onPick(question)}
-            className="rounded-full border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground disabled:opacity-50"
-          >
-            {question}
-          </button>
+            sx={{ borderRadius: 999, fontWeight: 500, color: "text.secondary" }}
+          />
         ))}
       </div>
     </div>

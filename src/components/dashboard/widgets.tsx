@@ -4,6 +4,7 @@ import { formatMoney } from "@/lib/finance/money";
 import { changeRatio, formatChange, shareOfTotal } from "@/lib/finance/reports";
 import type { BudgetStatusRow } from "@/lib/data/budgets";
 import type { CategorySpending } from "@/lib/data/dashboard";
+import { ProgressBar } from "@/components/ui/progress-bar";
 
 /**
  * Dashboard widgets.
@@ -101,14 +102,7 @@ export function NetWorthComposition({
                     )}
                   </span>
                 </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-                  <div
-                    className={`h-full rounded-full ${
-                      segment.tone === "negative" ? "bg-negative" : "bg-primary"
-                    }`}
-                    style={{ width: `${Math.min(100, share * 100)}%` }}
-                  />
-                </div>
+                <ProgressBar className="mt-1" value={Math.min(100, share * 100)} tone={segment.tone === "negative" ? "negative" : "primary"} />
               </li>
             );
           })}
@@ -219,12 +213,7 @@ export function TopSpendingCategories({
                     </span>
                   </span>
                 </div>
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${Math.min(100, (share ?? 0) * 100)}%` }}
-                  />
-                </div>
+                <ProgressBar className="mt-1" value={Math.min(100, (share ?? 0) * 100)} tone="primary" />
               </li>
             );
           })}

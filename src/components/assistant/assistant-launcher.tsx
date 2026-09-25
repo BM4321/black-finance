@@ -1,5 +1,12 @@
 "use client";
 
+import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
+import CloseRounded from "@mui/icons-material/CloseRounded";
+import Fab from "@mui/material/Fab";
+import Grow from "@mui/material/Grow";
+import IconButton from "@mui/material/IconButton";
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
 import { useEffect, useRef, useState } from "react";
 
 import { AssistantChat } from "@/components/assistant/assistant-chat";
@@ -7,13 +14,14 @@ import { AssistantChat } from "@/components/assistant/assistant-chat";
 /**
  * Floating assistant launcher.
  *
- * A single button pinned to the bottom-right of every authenticated page. It
- * opens a chat panel above itself. Kept as a client component because the open
- * state and conversation are per-session UI state.
+ * A Material UI extended FAB pinned to the bottom-right of every authenticated
+ * page. It opens a chat panel above itself. Kept as a client component because
+ * the open state and conversation are per-session UI state.
  *
  * The conversation lives inside the panel, so it persists while the page
- * underneath changes (the panel is mounted in the app layout, not per page),
- * and survives closing/reopening during the session.
+ * underneath changes (the panel is mounted in the app layout, not per page).
+ * The panel stays mounted while closed (hidden), so the conversation also
+ * survives closing and reopening during the session.
  */
 export function AssistantLauncher({ configured }: { configured: boolean }) {
   const [open, setOpen] = useState(false);
@@ -35,51 +43,75 @@ export function AssistantLauncher({ configured }: { configured: boolean }) {
   return (
     <>
       {/* Panel ---------------------------------------------------------- */}
-      {open && (
-        <div
+      <Grow in={open} style={{ transformOrigin: "bottom right" }}>
+        <Paper
           role="dialog"
           aria-label="Financial assistant"
-          className="fixed inset-x-3 bottom-20 z-50 flex h-[min(70vh,560px)] flex-col rounded-2xl border border-border bg-background p-4 shadow-2xl sm:inset-x-auto sm:right-6 sm:w-[26rem]"
+          aria-hidden={!open}
+          variant="outlined"
+          sx={{
+            position: "fixed",
+            zIndex: 1300,
+            bottom: 88,
+            left: { xs: 12, sm: "auto" },
+            right: { xs: 12, sm: 24 },
+            width: { sm: 420 },
+            height: "min(70vh, 560px)",
+            display: open ? "flex" : "none",
+            flexDirection: "column",
+            p: 2,
+            borderRadius: "24px",
+            bgcolor: "background.default",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.55)",
+          }}
         >
           <div className="mb-3 flex shrink-0 items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">Financial assistant</h2>
-              <p className="text-xs text-muted-foreground">
-                Grounded in your own data
-              </p>
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
+                <AutoAwesomeRounded fontSize="small" />
+              </span>
+              <div>
+                <Typography component="h2" variant="subtitle2">
+                  Financial assistant
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Grounded in your own data
+                </Typography>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              aria-label="Close assistant"
-              className="rounded-lg px-2 py-1 text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
-            >
-              ✕
-            </button>
+            <IconButton size="small" onClick={() => setOpen(false)} aria-label="Close assistant">
+              <CloseRounded fontSize="small" />
+            </IconButton>
           </div>
 
           <div className="min-h-0 flex-1">
             <AssistantChat configured={configured} />
           </div>
-        </div>
-      )}
+        </Paper>
+      </Grow>
 
       {/* Launcher ------------------------------------------------------- */}
-      <button
+      <Fab
         ref={buttonRef}
-        type="button"
+        variant="extended"
+        color="primary"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-label={open ? "Close financial assistant" : "Open financial assistant"}
-        className="fixed bottom-6 right-6 z-50 flex h-14 items-center gap-2 rounded-full bg-primary px-5 text-sm font-medium text-primary-foreground shadow-lg transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        sx={{
+          position: "fixed",
+          bottom: 24,
+          right: 24,
+          zIndex: 1300,
+          gap: 1,
+          textTransform: "none",
+          fontWeight: 600,
+          boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+        }}
       >
-        <span aria-hidden className="text-lg leading-none">
-          {open ? "✕" : "✦"}
-        </span>
-        <span className="hidden sm:inline">
-          {open ? "Close" : "Ask AI"}
-        </span>
-      </button>
+        {open ? <CloseRounded /> : <AutoAwesomeRounded />}
+        <span className="hidden sm:inline">{open ? "Close" : "Ask AI"}</span>
+      </Fab>
     </>
   );
 }

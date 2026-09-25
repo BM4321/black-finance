@@ -14,6 +14,9 @@ import { daysUntilDue, isOverdue } from "@/lib/finance/debts";
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
 import { DEBT_DIRECTION_LABELS, DEBT_STATUS_LABELS } from "@/types/domain";
+import AddRounded from "@mui/icons-material/AddRounded";
+import { LinkButton } from "@/components/ui/link-button";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 export const metadata = { title: "Debts" };
 
@@ -73,16 +76,13 @@ function OpenDebtRow({ debt }: { debt: DebtRow }) {
         <span className="flex items-center gap-1">
           <form action={settleDebtAction}>
             <input type="hidden" name="debtId" value={debt.id} />
-            <SubmitButton variant="ghost" className="px-2 py-1 text-xs">
+            <SubmitButton variant="ghost" size="small">
               Mark settled
             </SubmitButton>
           </form>
-          <Link
-            href={`/debts/${debt.id}/edit`}
-            className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
-          >
+          <LinkButton href={`/debts/${debt.id}/edit`} variant="ghost" size="small">
             Edit
-          </Link>
+          </LinkButton>
         </span>
       </div>
     </li>
@@ -103,7 +103,7 @@ function ClosedDebtRow({ debt }: { debt: DebtRow }) {
       <form action={writeOffDebtAction}>
         <input type="hidden" name="debtId" value={debt.id} />
         <input type="hidden" name="writtenOff" value={writtenOff ? "false" : "true"} />
-        <SubmitButton variant="ghost" className="px-2 py-1 text-xs">
+        <SubmitButton variant="ghost" size="small">
           {writtenOff ? "Reopen" : "Write off"}
         </SubmitButton>
       </form>
@@ -131,12 +131,9 @@ export default async function DebtsPage() {
         title="Debts"
         subtitle="Money you owe, and money owed to you."
         action={
-          <Link
-            href="/debts/new"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
+          <LinkButton href="/debts/new" variant="primary" startIcon={<AddRounded />}>
             Add debt
-          </Link>
+          </LinkButton>
         }
       />
 
@@ -145,48 +142,22 @@ export default async function DebtsPage() {
           title="No debts tracked"
           description="Record money you owe or money owed to you, with an optional due date. Open debts affect your net worth."
           action={
-            <Link
-              href="/debts/new"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            >
+            <LinkButton href="/debts/new" variant="primary" startIcon={<AddRounded />}>
               Add debt
-            </Link>
+            </LinkButton>
           }
         />
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Card className="px-4 py-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                I owe
-              </span>
-              <p className="tabular-nums text-lg font-semibold text-negative">
-                {formatMoney(totalOwedByMe)}
-              </p>
-            </Card>
-            <Card className="px-4 py-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Owed to me
-              </span>
-              <p className="tabular-nums text-lg font-semibold text-positive">
-                {formatMoney(totalOwedToMe)}
-              </p>
-            </Card>
-            <Card className="px-4 py-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Net position
-              </span>
-              <p
-                className={`tabular-nums text-lg font-semibold ${
-                  Number(net) < 0 ? "text-negative" : "text-positive"
-                }`}
-              >
-                {formatMoney(net)}
-              </p>
-              <span className="text-[11px] text-muted-foreground">
-                Owed to me − what I owe
-              </span>
-            </Card>
+            <StatCard label="I owe" value={formatMoney(totalOwedByMe)} tone="negative" />
+            <StatCard label="Owed to me" value={formatMoney(totalOwedToMe)} tone="positive" />
+            <StatCard
+              label="Net position"
+              value={formatMoney(net)}
+              hint="Owed to me − what I owe"
+              tone={Number(net) < 0 ? "negative" : "positive"}
+            />
           </div>
 
           {owedByMe.length > 0 && (

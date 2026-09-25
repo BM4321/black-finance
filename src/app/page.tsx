@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { BrandMark } from "@/components/ui/brand";
+import { LinkButton } from "@/components/ui/link-button";
 import { NavIcon } from "@/components/ui/nav-icon";
 import type { NavIconName } from "@/lib/ui/nav";
 
@@ -124,11 +126,8 @@ function Eyebrow({ children }: { children: ReactNode }) {
 
 function Brand() {
   return (
-    <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight">
-      <span className="grid h-8 w-8 place-items-center rounded-lg bg-foreground text-sm font-bold text-background">
-        B
-      </span>
-      Black Finance
+    <Link href="/" aria-label="Black Finance home">
+      <BrandMark />
     </Link>
   );
 }
@@ -200,7 +199,7 @@ function ProductPreview() {
 
 export default function Home() {
   return (
-    <div className="theme-dark flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col">
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-4 py-4 sm:px-6">
           <Brand />
@@ -219,18 +218,12 @@ export default function Home() {
             </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Link
-              href="/login"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
+            <LinkButton href="/login" variant="ghost">
               Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-            >
+            </LinkButton>
+            <LinkButton href="/signup" variant="primary">
               Register
-            </Link>
+            </LinkButton>
           </div>
         </div>
       </header>
@@ -249,18 +242,12 @@ export default function Home() {
               that answers questions from your own records.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/signup"
-                className="rounded-lg bg-primary px-6 py-3 text-center text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-              >
+              <LinkButton href="/signup" variant="primary" size="large">
                 Create an account
-              </Link>
-              <Link
-                href="/login"
-                className="rounded-lg border border-border px-6 py-3 text-center text-sm font-medium transition-colors hover:bg-surface-muted"
-              >
+              </LinkButton>
+              <LinkButton href="/login" variant="secondary" size="large">
                 Sign in
-              </Link>
+              </LinkButton>
             </div>
           </div>
           <div className="animate-fade-up [animation-delay:120ms]">
@@ -288,7 +275,7 @@ export default function Home() {
                     {feature.icon === "assistant" ? (
                       <SparkIcon />
                     ) : (
-                      <NavIcon name={feature.icon} />
+                      <NavIcon name={feature.icon} fontSize="medium" />
                     )}
                   </span>
                   <h3 className="mt-4 font-semibold">{feature.title}</h3>
@@ -365,24 +352,18 @@ export default function Home() {
                   Create an account with your email and start adding your
                   accounts.
                 </p>
-                <Link
-                  href="/signup"
-                  className="mt-6 rounded-lg bg-primary px-5 py-3 text-center text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-                >
+                <LinkButton href="/signup" variant="primary" size="large" fullWidth className="mt-6">
                   Register
-                </Link>
+                </LinkButton>
               </div>
               <div className="flex flex-col rounded-2xl border border-border bg-surface p-6">
                 <h3 className="text-lg font-semibold">Already have an account</h3>
                 <p className="mt-1.5 flex-1 text-sm text-muted-foreground">
                   Sign in to pick up where you left off.
                 </p>
-                <Link
-                  href="/login"
-                  className="mt-6 rounded-lg border border-border px-5 py-3 text-center text-sm font-medium transition-colors hover:bg-surface-muted"
-                >
+                <LinkButton href="/login" variant="secondary" size="large" fullWidth className="mt-6">
                   Sign in
-                </Link>
+                </LinkButton>
               </div>
             </div>
           </div>

@@ -46,7 +46,7 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
         <FieldError messages={state.errors?.password} />
       </div>
 
-      <Button type="submit" disabled={pending} className="w-full">
+      <Button type="submit" size="large" loading={pending} fullWidth>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

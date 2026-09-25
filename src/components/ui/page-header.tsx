@@ -1,3 +1,4 @@
+import Typography from "@mui/material/Typography";
 import type { ReactNode } from "react";
 
 /** Consistent page header: title, optional subtitle, right-aligned action. */
@@ -13,14 +14,16 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+        <Typography component="h1" variant="h4" sx={{ fontSize: { xs: 24, sm: 30 } }}>
           {title}
-        </h1>
+        </Typography>
         {subtitle && (
-          <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {subtitle}
+          </Typography>
         )}
       </div>
-      {action}
+      {action && <div className="flex flex-wrap gap-2">{action}</div>}
     </div>
   );
 }

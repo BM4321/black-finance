@@ -1,8 +1,11 @@
+import Alert from "@mui/material/Alert";
+import FormHelperText from "@mui/material/FormHelperText";
 import type { ReactNode } from "react";
 
 /**
- * Inline form message. `role="alert"` makes errors announced immediately when
- * they appear; notices use the politer `status` role.
+ * Inline form message, built on Material UI's Alert. `role="alert"` makes
+ * errors announced immediately when they appear; notices use the politer
+ * `status` role.
  */
 export function FormMessage({
   kind,
@@ -11,17 +14,14 @@ export function FormMessage({
   kind: "error" | "notice";
   children: ReactNode;
 }) {
-  const palette =
-    kind === "error"
-      ? "border-negative/30 bg-negative/5 text-negative"
-      : "border-primary/30 bg-primary/5 text-primary";
   return (
-    <p
+    <Alert
+      variant="outlined"
+      severity={kind === "error" ? "error" : "info"}
       role={kind === "error" ? "alert" : "status"}
-      className={`rounded-lg border px-3 py-2 text-sm ${palette}`}
     >
       {children}
-    </p>
+    </Alert>
   );
 }
 
@@ -29,8 +29,8 @@ export function FormMessage({
 export function FieldError({ messages }: { messages?: string[] }) {
   if (!messages || messages.length === 0) return null;
   return (
-    <p role="alert" className="text-xs text-negative">
+    <FormHelperText error role="alert" sx={{ mx: 0 }}>
       {messages[0]}
-    </p>
+    </FormHelperText>
   );
 }
