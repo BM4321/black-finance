@@ -149,7 +149,7 @@ export default async function DebtsPage() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard label="I owe" value={formatMoney(totalOwedByMe)} tone="negative" />
             <StatCard label="Owed to me" value={formatMoney(totalOwedToMe)} tone="positive" />
             <StatCard

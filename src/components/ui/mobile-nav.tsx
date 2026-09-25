@@ -17,6 +17,7 @@ import { useState } from "react";
 import { signOut } from "@/app/(auth)/actions";
 import { BrandMark } from "@/components/ui/brand";
 import { NavIcon } from "@/components/ui/nav-icon";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { isActiveRoute, NAV_GROUPS, type NavItem } from "@/lib/ui/nav";
 
 /**
@@ -107,6 +108,7 @@ export function MobileNav({ items, email }: { items: NavItem[]; email?: string }
           {email && (
             <p className="truncate px-3 pb-2 pt-1 text-xs text-muted-foreground">{email}</p>
           )}
+          <ThemeToggle variant="row" />
           <form action={signOut}>
             <ListItemButton
               component="button"

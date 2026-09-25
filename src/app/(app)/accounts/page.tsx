@@ -44,7 +44,7 @@ export default async function AccountsPage() {
         />
       ) : (
         <>
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="stagger mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard label="Total across accounts" value={formatMoney(totalBalance)} />
             <StatCard label="Spendable" value={formatMoney(spendableBalance)} hint="Excludes savings accounts" />
             <StatCard label="Savings" value={formatMoney(savingsBalance)} hint={`${hasSavings ? "Money set aside" : "No savings account yet"}`} tone="positive" />

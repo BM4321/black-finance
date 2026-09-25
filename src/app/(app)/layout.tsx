@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { BrandMark } from "@/components/ui/brand";
 import { MobileNav } from "@/components/ui/mobile-nav";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Sidebar } from "@/components/ui/sidebar";
 import { isAssistantConfigured } from "@/lib/ai/config";
 import { requireUser } from "@/lib/auth";
@@ -35,7 +36,10 @@ export default async function AppLayout({
             <Link href="/dashboard">
               <BrandMark />
             </Link>
-            <MobileNav items={NAV_ITEMS} email={user.email ?? undefined} />
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <MobileNav items={NAV_ITEMS} email={user.email ?? undefined} />
+            </div>
           </div>
         </header>
 

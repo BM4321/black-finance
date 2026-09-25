@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { BrandMark } from "@/components/ui/brand";
 import { LinkButton } from "@/components/ui/link-button";
 import { NavIcon } from "@/components/ui/nav-icon";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import type { NavIconName } from "@/lib/ui/nav";
 
 /**
@@ -143,7 +144,7 @@ function ProductPreview() {
   return (
     <div
       aria-label="Example dashboard"
-      className="rounded-2xl border border-border bg-surface p-6 shadow-2xl shadow-black/40"
+      className="animate-float rounded-2xl border border-border bg-surface p-6 shadow-[var(--shadow)]"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -218,6 +219,7 @@ export default function Home() {
             </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle />
             <LinkButton href="/login" variant="ghost">
               Sign in
             </LinkButton>
@@ -265,11 +267,11 @@ export default function Home() {
             <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight">
               Everything you need to run your money, in one place.
             </h2>
-            <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <ul className="stagger mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {FEATURES.map((feature) => (
                 <li
                   key={feature.title}
-                  className="rounded-xl border border-border bg-surface p-5"
+                  className="hover-lift rounded-2xl border border-border bg-surface p-5 transition-all duration-300"
                 >
                   <span className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
                     {feature.icon === "assistant" ? (
@@ -295,7 +297,7 @@ export default function Home() {
             <h2 className="mt-3 max-w-2xl text-3xl font-semibold tracking-tight">
               Four steps from sign-up to a clear picture.
             </h2>
-            <ol className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <ol className="stagger mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {STEPS.map((step, index) => (
                 <li key={step.title} className="border-t border-border pt-5">
                   <span className="tabular-nums font-mono text-sm text-primary">
@@ -327,7 +329,7 @@ export default function Home() {
               {SAFEGUARDS.map((item) => (
                 <li
                   key={item.title}
-                  className="rounded-xl border border-border bg-surface p-5"
+                  className="hover-lift rounded-2xl border border-border bg-surface p-5 transition-all duration-300"
                 >
                   <h3 className="font-semibold">{item.title}</h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
@@ -346,7 +348,7 @@ export default function Home() {
               Ready to begin?
             </h2>
             <div className="mx-auto mt-10 grid max-w-3xl gap-4 sm:grid-cols-2">
-              <div className="flex flex-col rounded-2xl border border-primary/40 bg-surface p-6">
+              <div className="hover-lift flex flex-col rounded-2xl border border-primary/40 bg-surface p-6 transition-all duration-300">
                 <h3 className="text-lg font-semibold">New to Black Finance</h3>
                 <p className="mt-1.5 flex-1 text-sm text-muted-foreground">
                   Create an account with your email and start adding your
@@ -356,7 +358,7 @@ export default function Home() {
                   Register
                 </LinkButton>
               </div>
-              <div className="flex flex-col rounded-2xl border border-border bg-surface p-6">
+              <div className="hover-lift flex flex-col rounded-2xl border border-border bg-surface p-6 transition-all duration-300">
                 <h3 className="text-lg font-semibold">Already have an account</h3>
                 <p className="mt-1.5 flex-1 text-sm text-muted-foreground">
                   Sign in to pick up where you left off.

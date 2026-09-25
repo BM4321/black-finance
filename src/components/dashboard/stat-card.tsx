@@ -27,7 +27,7 @@ export function StatCard({
   className?: string;
 }) {
   return (
-    <Card className={className} sx={{ px: 2.5, py: 2, "&:hover": { borderColor: "#3a3c42" } }}>
+    <Card className={`hover-lift ${className ?? ""}`} sx={{ px: 2.5, py: 2 }}>
       <Typography variant="body2" color="text.secondary">
         {label}
       </Typography>

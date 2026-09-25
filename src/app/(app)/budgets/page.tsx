@@ -88,7 +88,7 @@ export default async function BudgetsPage({
       {hasBudget ? (
         <>
           {/* Summary respects the budget-vs-balance distinction explicitly. */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard label="Total budgeted" value={formatMoney(overview.totalBudgeted)} />
             <StatCard label="Total spent" value={formatMoney(overview.totalSpent)} hint="Expenses only — transfers don’t count" />
             <StatCard label="Unallocated" value={formatMoney(overview.totalRemaining)} hint="Allowance left, not account cash" />
