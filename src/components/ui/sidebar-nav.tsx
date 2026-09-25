@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "@/app/(auth)/actions";
 import { BrandMark } from "@/components/ui/brand";
 import { NavIcon } from "@/components/ui/nav-icon";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import {
   SIDEBAR_COOKIE,
   SIDEBAR_COOKIE_OPTIONS,
@@ -58,7 +59,7 @@ export function SidebarNav({
     <aside
       data-sidebar-root
       data-collapsed={collapsed ? "true" : "false"}
-      className="sidebar sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-[#0f1013] md:flex"
+      className="sidebar sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-sidebar md:flex"
     >
       {/* Brand ---------------------------------------------------------- */}
       <div className="flex h-16 items-center border-b border-border px-4">
@@ -124,13 +125,14 @@ export function SidebarNav({
         ))}
       </nav>
 
-      {/* Footer: user, sign out, collapse ------------------------------ */}
+      {/* Footer: user, theme, sign out, collapse ------------------------------ */}
       <div className="border-t border-border p-2">
         {email && (
           <p className="sidebar-label truncate px-3 pb-2 pt-1 text-xs text-muted-foreground">
             {email}
           </p>
         )}
+        <ThemeToggle variant="row" labelClassName="sidebar-label" />
         <form action={signOut}>
           <ListItemButton
             component="button"

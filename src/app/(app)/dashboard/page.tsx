@@ -145,7 +145,7 @@ export default async function DashboardPage() {
 
       <div className="stagger grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Trend ----------------------------------------------------------- */}
-        <Card className="p-4 transition-shadow hover:shadow-md">
+        <Card className="p-4">
           <IncomeExpenseSection
             data={monthly}
             title="Income vs expenses · last 6 months"
@@ -153,7 +153,7 @@ export default async function DashboardPage() {
         </Card>
 
         {/* Spending by category ------------------------------------------- */}
-        <Card className="p-4 transition-shadow hover:shadow-md">
+        <Card className="p-4">
           <SpendingSection
             data={spending}
             title="Spending by category · this month"

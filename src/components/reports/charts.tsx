@@ -1,5 +1,6 @@
 "use client";
 
+import { useColorScheme } from "@mui/material/styles";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart, lineClasses } from "@mui/x-charts/LineChart";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -14,14 +15,14 @@ import type {
   IncomeChartType,
   SpendingChartType,
 } from "@/lib/ui/chart-preferences";
-import { CHART_COLORS, tokens } from "@/theme/theme";
+import { SCHEMES } from "@/theme/theme";
 
 /**
  * Report charts, built on MUI X Charts.
  *
  * Every mark is rounded: bars carry a corner radius, donut slices have rounded
  * ends and gaps, and lines use a smooth curve with round joins. Colours come
- * from the theme's chart palette, so charts follow the rest of the UI.
+ * from the active light/dark scheme, so charts follow the rest of the UI.
  */
 
 /** "2026-01" -> "Jan 2026" without a date library. */
@@ -44,11 +45,17 @@ function money(value: number | null): string {
   return value === null ? "—" : formatMoney(value);
 }
 
-/** Kept for callers that colour legends to match the charts. */
-export const PALETTE = CHART_COLORS;
-
-const INCOME_COLOR = tokens.foreground;
-const EXPENSE_COLOR = tokens.primary;
+/**
+ * Colours for the scheme currently shown. SVG fills need real colour values
+ * (not CSS variables), so charts re-render with the other palette when the
+ * theme changes. Before hydration the mode is unknown and dark is assumed,
+ * matching the default theme.
+ */
+function useChartTokens() {
+  const { mode, systemMode } = useColorScheme();
+  const resolved = mode === "system" ? systemMode : mode;
+  return SCHEMES[resolved === "light" ? "light" : "dark"];
+}
 const BAR_RADIUS = 8;
 const HEIGHT = 300;
 
@@ -79,6 +86,9 @@ export function IncomeExpenseChart({
   data: MonthlySummary[];
   variant?: IncomeChartType;
 }) {
+  const tokens = useChartTokens();
+  const incomeColor = tokens.foreground;
+  const expenseColor = tokens.primary;
   const months = data.map((row) => monthLabel(row.monthStart));
   const income = data.map((row) => Number(row.income));
   const expenses = data.map((row) => Number(row.expense));
@@ -99,8 +109,8 @@ export function IncomeExpenseChart({
         ]}
         yAxis={[{ valueFormatter: compact, width: 56 }]}
         series={[
-          { data: income, label: "Income", color: INCOME_COLOR, valueFormatter: money },
-          { data: expenses, label: "Expenses", color: EXPENSE_COLOR, valueFormatter: money },
+          { data: income, label: "Income", color: incomeColor, valueFormatter: money },
+          { data: expenses, label: "Expenses", color: expenseColor, valueFormatter: money },
         ]}
       />
     );
@@ -117,7 +127,7 @@ export function IncomeExpenseChart({
         {
           data: income,
           label: "Income",
-          color: INCOME_COLOR,
+          color: incomeColor,
           curve: "natural",
           area: variant === "area",
           showMark: variant === "line",
@@ -126,7 +136,7 @@ export function IncomeExpenseChart({
         {
           data: expenses,
           label: "Expenses",
-          color: EXPENSE_COLOR,
+          color: expenseColor,
           curve: "natural",
           area: variant === "area",
           showMark: variant === "line",
@@ -152,11 +162,12 @@ export function SpendingChart({
   data: CategorySpending[];
   variant?: SpendingChartType;
 }) {
+  const tokens = useChartTokens();
   const rows = data.map((row, index) => ({
     name: row.categoryName,
     value: Number(row.total),
     total: row.total,
-    color: CHART_COLORS[index % CHART_COLORS.length],
+    color: tokens.chart[index % tokens.chart.length],
   }));
 
   if (variant === "list") {
@@ -242,6 +253,7 @@ export function SpendingChart({
  * month does not draw a misleading 0%.
  */
 export function SavingsRateChart({ data }: { data: MonthlySummary[] }) {
+  const tokens = useChartTokens();
   const series = savingsRateSeries(data);
   const months = series.map((point) => monthLabel(point.monthStart));
   const rates = series.map((point) =>
@@ -284,6 +296,7 @@ export function SavingsRateChart({ data }: { data: MonthlySummary[] }) {
  * history, so this is cash + savings + other account balances.
  */
 export function NetWorthChart({ data }: { data: NetWorthPoint[] }) {
+  const tokens = useChartTokens();
   return (
     <LineChart
       height={HEIGHT}
@@ -313,6 +326,7 @@ export function AccountBalancesChart({
 }: {
   data: AccountWithBalance[];
 }) {
+  const tokens = useChartTokens();
   return (
     <BarChart
       layout="horizontal"
@@ -328,7 +342,7 @@ export function AccountBalancesChart({
           categoryGapRatio: 0.35,
           colorMap: {
             type: "ordinal",
-            colors: data.map((_, index) => CHART_COLORS[index % CHART_COLORS.length]),
+            colors: data.map((_, index) => tokens.chart[index % tokens.chart.length]),
           },
         },
       ]}

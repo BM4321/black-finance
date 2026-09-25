@@ -96,7 +96,7 @@ export default async function TransactionsPage({
       />
 
       {/* Summary of the filtered set. Totals come from the database. */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="stagger mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Income" value={formatMoney(totals.income)} tone="positive" />
         <StatCard label="Expenses" value={formatMoney(totals.expense)} tone="negative" />
         <StatCard label="Transfers" value={formatMoney(totals.transfer)} hint="Not counted as spending" tone="muted" />
