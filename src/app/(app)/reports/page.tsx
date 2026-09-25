@@ -14,6 +14,8 @@ import { getReportsData } from "@/lib/data/reports";
 import { formatMoney } from "@/lib/finance/money";
 import { changeRatio, formatChange, shareOfTotal } from "@/lib/finance/reports";
 import { createClient } from "@/lib/supabase/server";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 export const metadata = { title: "Reports" };
 
@@ -121,39 +123,9 @@ export default async function ReportsPage({
 
       {/* Headline comparisons ------------------------------------------- */}
       <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="px-4 py-3 transition-shadow hover:shadow-md">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Income (latest month)
-          </span>
-          <p className="tabular-nums text-lg font-semibold text-positive">
-            {formatMoney(latest?.income ?? "0")}
-          </p>
-          <span className="text-[11px] text-muted-foreground">
-            {formatChange(incomeChange)} vs previous month
-          </span>
-        </Card>
-        <Card className="px-4 py-3 transition-shadow hover:shadow-md">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Expenses (latest month)
-          </span>
-          <p className="tabular-nums text-lg font-semibold text-negative">
-            {formatMoney(latest?.expense ?? "0")}
-          </p>
-          <span className="text-[11px] text-muted-foreground">
-            {formatChange(expenseChange)} vs previous month
-          </span>
-        </Card>
-        <Card className="px-4 py-3 transition-shadow hover:shadow-md">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Net worth today
-          </span>
-          <p className="tabular-nums text-lg font-semibold">
-            {formatMoney(data.breakdown.netWorth)}
-          </p>
-          <span className="text-[11px] text-muted-foreground">
-            Accounts + investments + debts
-          </span>
-        </Card>
+        <StatCard label="Income (latest month)" value={formatMoney(latest?.income ?? "0")} hint={`${formatChange(incomeChange)} vs previous month`} tone="positive" />
+        <StatCard label="Expenses (latest month)" value={formatMoney(latest?.expense ?? "0")} hint={`${formatChange(expenseChange)} vs previous month`} tone="negative" />
+        <StatCard label="Net worth today" value={formatMoney(data.breakdown.netWorth)} hint="Accounts + investments + debts" />
       </div>
 
       {/* Income vs expenses --------------------------------------------- */}
@@ -205,12 +177,7 @@ export default async function ReportsPage({
                         </span>
                       </span>
                     </div>
-                    <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all duration-700"
-                        style={{ width: `${Math.min(100, (share ?? 0) * 100)}%` }}
-                      />
-                    </div>
+                    <ProgressBar className="mt-1" value={Math.min(100, (share ?? 0) * 100)} tone="primary" />
                   </li>
                 );
               })}
@@ -252,18 +219,13 @@ export default async function ReportsPage({
                         {item.percentUsed.toFixed(0)}%
                       </span>
                     </div>
-                    <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-                      <div
-                        className={`h-full rounded-full transition-all duration-700 ${
+                    <ProgressBar className="mt-1" value={Math.min(100, item.percentUsed)} tone={
                           item.percentUsed > 100
-                            ? "bg-negative"
+                            ? "negative"
                             : item.percentUsed >= 80
-                              ? "bg-warning"
-                              : "bg-positive"
-                        }`}
-                        style={{ width: `${Math.min(100, item.percentUsed)}%` }}
-                      />
-                    </div>
+                              ? "warning"
+                              : "positive"
+                        } />
                   </li>
                 ))}
               </ul>

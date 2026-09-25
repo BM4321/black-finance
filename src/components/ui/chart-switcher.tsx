@@ -1,5 +1,7 @@
 "use client";
 
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import { useEffect, useState } from "react";
 
 import {
@@ -13,13 +15,13 @@ export type ChartOption<T extends string> = {
 };
 
 /**
- * Segmented control for choosing how a chart is drawn.
+ * Segmented control for choosing how a chart is drawn, built on Material UI's
+ * ToggleButtonGroup (exclusive, so it behaves as a single choice).
  *
- * Renders as a radiogroup for accessibility. The selected value is persisted to
- * `localStorage` under a per-chart key so the preference survives reloads. The
- * initial render always uses the default and the stored value is applied in an
- * effect, which avoids a server/client hydration mismatch (the server has no
- * access to localStorage).
+ * The selected value is persisted to `localStorage` under a per-chart key so
+ * the preference survives reloads. The initial render always uses the default
+ * and the stored value is applied in an effect, which avoids a server/client
+ * hydration mismatch (the server has no access to localStorage).
  */
 export function ChartSwitcher<T extends string>({
   chartId,
@@ -49,7 +51,10 @@ export function ChartSwitcher<T extends string>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartId]);
 
-  function select(next: T) {
+  function select(next: T | null) {
+    // Exclusive groups report null when the active button is clicked again;
+    // keep the current choice rather than clearing it.
+    if (next === null) return;
     onChange(next);
     try {
       window.localStorage.setItem(chartPreferenceKey(chartId), next);
@@ -60,31 +65,19 @@ export function ChartSwitcher<T extends string>({
   }
 
   return (
-    <div
-      role="radiogroup"
+    <ToggleButtonGroup
+      exclusive
+      size="small"
+      value={value}
+      onChange={(_, next: T | null) => select(next)}
       aria-label={label}
-      className="inline-flex items-center gap-0.5 rounded-lg bg-surface-muted p-0.5"
     >
-      {options.map((option) => {
-        const selected = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            onClick={() => select(option.value)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              selected
-                ? "bg-surface text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
+      {options.map((option) => (
+        <ToggleButton key={option.value} value={option.value} sx={{ fontSize: 12 }}>
+          {option.label}
+        </ToggleButton>
+      ))}
+    </ToggleButtonGroup>
   );
 }
 

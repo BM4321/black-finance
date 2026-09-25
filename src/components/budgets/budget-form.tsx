@@ -1,5 +1,7 @@
 "use client";
 
+import CloseRounded from "@mui/icons-material/CloseRounded";
+import IconButton from "@mui/material/IconButton";
 import { useActionState, useMemo, useState } from "react";
 
 import type { BudgetActionState } from "@/app/(app)/budgets/actions";
@@ -150,14 +152,13 @@ export function BudgetForm({
                   className="w-32 text-right tabular-nums sm:w-40"
                 />
 
-                <button
-                  type="button"
+                <IconButton
                   onClick={() => removeRow(row.key)}
-                  className="rounded-lg px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-surface-muted hover:text-negative"
                   aria-label="Remove item"
+                  size="small"
                 >
-                  ✕
-                </button>
+                  <CloseRounded fontSize="small" />
+                </IconButton>
               </div>
               {spent !== undefined && (
                 <p className="pl-1 text-xs text-muted-foreground">

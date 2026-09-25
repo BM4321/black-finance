@@ -31,12 +31,12 @@ import type { NetWorthPoint } from "@/lib/data/reports";
 
 const INCOME_LABELS: Record<IncomeChartType, string> = {
   bar: "Bars",
-  line: "Lines",
+  line: "Smooth lines",
   area: "Area",
 };
 
 const SPENDING_LABELS: Record<SpendingChartType, string> = {
-  pie: "Pie",
+  pie: "Donut",
   bar: "Bars",
   list: "List",
 };

@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import {
   copyBudgetAction,
@@ -15,6 +14,8 @@ import { getBudgetOverview, monthStart } from "@/lib/data/budgets";
 import { listCategories } from "@/lib/data/categories";
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
+import { LinkButton } from "@/components/ui/link-button";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 export const metadata = { title: "Budgets" };
 
@@ -69,23 +70,17 @@ export default async function BudgetsPage({
         subtitle="Your spending allowances by category."
         action={
           <div className="flex items-center gap-2">
-            <Link
-              href={`/budgets?month=${previousMonth.slice(0, 7)}`}
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:bg-surface-muted"
-              aria-label="Previous month"
-            >
+            <LinkButton href={`/budgets?month=${previousMonth.slice(0, 7)}`} variant="secondary"
+              aria-label="Previous month">
               ←
-            </Link>
+            </LinkButton>
             <span className="min-w-[9rem] text-center text-sm font-medium">
               {monthLabel(period)}
             </span>
-            <Link
-              href={`/budgets?month=${nextMonth.slice(0, 7)}`}
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium transition-colors hover:bg-surface-muted"
-              aria-label="Next month"
-            >
+            <LinkButton href={`/budgets?month=${nextMonth.slice(0, 7)}`} variant="secondary"
+              aria-label="Next month">
               →
-            </Link>
+            </LinkButton>
           </div>
         }
       />
@@ -94,36 +89,9 @@ export default async function BudgetsPage({
         <>
           {/* Summary respects the budget-vs-balance distinction explicitly. */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Card className="px-4 py-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Total budgeted
-              </span>
-              <p className="tabular-nums text-lg font-semibold">
-                {formatMoney(overview.totalBudgeted)}
-              </p>
-            </Card>
-            <Card className="px-4 py-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Total spent
-              </span>
-              <p className="tabular-nums text-lg font-semibold">
-                {formatMoney(overview.totalSpent)}
-              </p>
-              <span className="text-[11px] text-muted-foreground">
-                Expenses only — transfers don’t count
-              </span>
-            </Card>
-            <Card className="px-4 py-3">
-              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Unallocated
-              </span>
-              <p className="tabular-nums text-lg font-semibold">
-                {formatMoney(overview.totalRemaining)}
-              </p>
-              <span className="text-[11px] text-muted-foreground">
-                Allowance left, not account cash
-              </span>
-            </Card>
+            <StatCard label="Total budgeted" value={formatMoney(overview.totalBudgeted)} />
+            <StatCard label="Total spent" value={formatMoney(overview.totalSpent)} hint="Expenses only — transfers don’t count" />
+            <StatCard label="Unallocated" value={formatMoney(overview.totalRemaining)} hint="Allowance left, not account cash" />
           </div>
 
           <Card className="overflow-hidden">

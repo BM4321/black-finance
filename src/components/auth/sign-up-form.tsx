@@ -61,7 +61,7 @@ export function SignUpForm() {
         <FieldError messages={state.errors?.password} />
       </div>
 
-      <Button type="submit" disabled={pending} className="w-full">
+      <Button type="submit" size="large" loading={pending} fullWidth>
         {pending ? "Creating account…" : "Create account"}
       </Button>
     </form>

@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 import { archiveAccountAction } from "@/app/(app)/accounts/actions";
 import { Card } from "@/components/ui/card";
@@ -6,6 +5,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import type { AccountWithBalance } from "@/lib/data/accounts";
 import { formatMoney } from "@/lib/finance/money";
 import { ACCOUNT_TYPE_LABELS } from "@/types/domain";
+import { LinkButton } from "@/components/ui/link-button";
+import { Badge } from "@/components/ui/badge";
 
 function AccountRow({ account }: { account: AccountWithBalance }) {
   const balance = Number(account.current_balance);
@@ -16,9 +17,7 @@ function AccountRow({ account }: { account: AccountWithBalance }) {
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{account.name}</span>
           {account.is_archived && (
-            <span className="rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Archived
-            </span>
+            <Badge>Archived</Badge>
           )}
         </div>
         <span className="text-xs text-muted-foreground">
@@ -35,12 +34,9 @@ function AccountRow({ account }: { account: AccountWithBalance }) {
       </span>
 
       <div className="flex items-center gap-1">
-        <Link
-          href={`/accounts/${account.account_id}/edit`}
-          className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
-        >
+        <LinkButton href={`/accounts/${account.account_id}/edit`} variant="ghost" size="small">
           Edit
-        </Link>
+        </LinkButton>
         <form action={archiveAccountAction}>
           <input type="hidden" name="accountId" value={account.account_id} />
           <input
@@ -48,7 +44,7 @@ function AccountRow({ account }: { account: AccountWithBalance }) {
             name="archived"
             value={account.is_archived ? "false" : "true"}
           />
-          <SubmitButton variant="ghost" className="px-2 py-1 text-xs">
+          <SubmitButton variant="ghost" size="small">
             {account.is_archived ? "Restore" : "Archive"}
           </SubmitButton>
         </form>

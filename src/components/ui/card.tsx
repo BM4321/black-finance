@@ -1,16 +1,9 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import MuiCard, { type CardProps } from "@mui/material/Card";
 
-export function Card({
-  className = "",
-  children,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
-  return (
-    <div
-      className={`rounded-xl border border-border bg-surface shadow-sm ${className}`}
-      {...props}
-    >
-      {children}
-    </div>
-  );
+/**
+ * Surface container, built on Material UI's outlined Card (rounded 16px, see
+ * the theme). Padding stays with the caller so lists can run edge to edge.
+ */
+export function Card(props: CardProps) {
+  return <MuiCard {...props} />;
 }

@@ -15,8 +15,18 @@ import {
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
 import { ASSET_TYPE_LABELS } from "@/types/domain";
+import AddRounded from "@mui/icons-material/AddRounded";
+import { LinkButton } from "@/components/ui/link-button";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata = { title: "Investments" };
+
+const STAT_TONE = {
+  gain: "positive",
+  loss: "negative",
+  flat: "muted",
+} as const;
 
 const GAIN_TONE = {
   gain: "text-positive",
@@ -52,9 +62,7 @@ function HoldingRow({ holding }: { holding: Holding }) {
             {holding.name}
           </Link>
           {holding.is_archived && (
-            <span className="rounded bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Archived
-            </span>
+            <Badge>Archived</Badge>
           )}
         </div>
         <span className="text-xs text-muted-foreground">
@@ -82,7 +90,7 @@ function HoldingRow({ holding }: { holding: Holding }) {
           name="archived"
           value={holding.is_archived ? "false" : "true"}
         />
-        <SubmitButton variant="ghost" className="px-2 py-1 text-xs">
+        <SubmitButton variant="ghost" size="small">
           {holding.is_archived ? "Restore" : "Archive"}
         </SubmitButton>
       </form>
@@ -102,12 +110,9 @@ export default async function InvestmentsPage() {
         title="Investments"
         subtitle="What you own, and what it is worth."
         action={
-          <Link
-            href="/investments/new"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
+          <LinkButton href="/investments/new" variant="primary" startIcon={<AddRounded />}>
             Add investment
-          </Link>
+          </LinkButton>
         }
       />
 
@@ -116,52 +121,25 @@ export default async function InvestmentsPage() {
           title="No investments yet"
           description="Track stocks, bonds, funds, crypto or property. Set a current value manually; it counts toward your net worth."
           action={
-            <Link
-              href="/investments/new"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            >
+            <LinkButton href="/investments/new" variant="primary" startIcon={<AddRounded />}>
               Add investment
-            </Link>
+            </LinkButton>
           }
         />
       ) : (
         <>
           {active.length > 0 && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Card className="px-4 py-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Portfolio value
-                </span>
-                <p className="tabular-nums text-lg font-semibold">
-                  {formatMoney(totalValue)}
-                </p>
-              </Card>
-              <Card className="px-4 py-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Total cost
-                </span>
-                <p className="tabular-nums text-lg font-semibold">
-                  {formatMoney(totalCost)}
-                </p>
-              </Card>
-              <Card className="px-4 py-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Total gain / loss
-                </span>
-                <p
-                  className={`tabular-nums text-lg font-semibold ${
-                    GAIN_TONE[classifyGain(totalGain)]
-                  }`}
-                >
-                  {classifyGain(totalGain) === "loss" ? "-" : ""}
-                  {formatMoney(
-                    totalGain.startsWith("-") ? totalGain.slice(1) : totalGain,
-                  )}
-                </p>
-                <span className="text-[11px] text-muted-foreground">
-                  {formatReturn(returnOnCost(totalGain, totalCost))} on cost
-                </span>
-              </Card>
+              <StatCard label="Portfolio value" value={formatMoney(totalValue)} />
+              <StatCard label="Total cost" value={formatMoney(totalCost)} />
+              <StatCard
+                label="Total gain / loss"
+                value={`${classifyGain(totalGain) === "loss" ? "-" : ""}${formatMoney(
+                  totalGain.startsWith("-") ? totalGain.slice(1) : totalGain,
+                )}`}
+                hint={`${formatReturn(returnOnCost(totalGain, totalCost))} on cost`}
+                tone={STAT_TONE[classifyGain(totalGain)]}
+              />
             </div>
           )}
 

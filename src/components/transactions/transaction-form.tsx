@@ -1,5 +1,7 @@
 "use client";
 
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import { useActionState, useState } from "react";
 
 import type { TransactionActionState } from "@/app/(app)/transactions/actions";
@@ -62,28 +64,21 @@ export function TransactionForm({
       <input type="hidden" name="type" value={type} />
 
       {/* Type toggle ---------------------------------------------------- */}
-      <div
-        role="radiogroup"
+      <ToggleButtonGroup
+        exclusive
+        fullWidth
+        value={type}
+        onChange={(_, next: (typeof TYPES)[number] | null) => {
+          if (next) setType(next);
+        }}
         aria-label="Transaction type"
-        className="grid grid-cols-3 gap-1 rounded-lg bg-surface-muted p-1"
       >
         {TYPES.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={type === option}
-            onClick={() => setType(option)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              type === option
-                ? "bg-surface text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
+          <ToggleButton key={option} value={option} sx={{ py: 1 }}>
             {TRANSACTION_TYPE_LABELS[option]}
-          </button>
+          </ToggleButton>
         ))}
-      </div>
+      </ToggleButtonGroup>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">

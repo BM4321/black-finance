@@ -15,13 +15,17 @@ import {
 } from "@/lib/finance/goals";
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
+import { ProgressBar, type ProgressTone } from "@/components/ui/progress-bar";
+import AddRounded from "@mui/icons-material/AddRounded";
+import { LinkButton } from "@/components/ui/link-button";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 export const metadata = { title: "Goals" };
 
-const STATUS_BAR: Record<GoalStatus, string> = {
-  not_started: "bg-surface-muted",
-  in_progress: "bg-primary",
-  complete: "bg-positive",
+const STATUS_TONE: Record<GoalStatus, ProgressTone> = {
+  not_started: "neutral",
+  in_progress: "primary",
+  complete: "positive",
 };
 
 /** Friendly deadline summary: days left, or a completed/past marker. */
@@ -54,12 +58,7 @@ function GoalCard({ goal }: { goal: GoalWithProgress }) {
         </span>
       </div>
 
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-        <div
-          className={`h-full rounded-full ${STATUS_BAR[status]}`}
-          style={{ width: `${goalProgressWidth(goal.percent_complete)}%` }}
-        />
-      </div>
+      <ProgressBar className="mt-2" value={goalProgressWidth(goal.percent_complete)} tone={STATUS_TONE[status]} />
 
       <div className="mt-1 flex items-center justify-between text-xs">
         <span className="text-muted-foreground">
@@ -89,12 +88,9 @@ export default async function GoalsPage() {
         title="Goals"
         subtitle="What you are saving toward."
         action={
-          <Link
-            href="/goals/new"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-          >
+          <LinkButton href="/goals/new" variant="primary" startIcon={<AddRounded />}>
             Add goal
-          </Link>
+          </LinkButton>
         }
       />
 
@@ -103,37 +99,17 @@ export default async function GoalsPage() {
           title="No goals yet"
           description="Create a savings goal and track contributions toward it — a trip, a course, an emergency fund."
           action={
-            <Link
-              href="/goals/new"
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            >
+            <LinkButton href="/goals/new" variant="primary" startIcon={<AddRounded />}>
               Add goal
-            </Link>
+            </LinkButton>
           }
         />
       ) : (
         <>
           {active.length > 0 && (
             <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Card className="px-4 py-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Saved toward active goals
-                </span>
-                <p className="tabular-nums text-lg font-semibold text-positive">
-                  {formatMoney(totalSaved)}
-                </p>
-              </Card>
-              <Card className="px-4 py-3">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Total target
-                </span>
-                <p className="tabular-nums text-lg font-semibold">
-                  {formatMoney(totalTarget)}
-                </p>
-                <span className="text-[11px] text-muted-foreground">
-                  Progress is derived from contributions, not account cash
-                </span>
-              </Card>
+              <StatCard label="Saved toward active goals" value={formatMoney(totalSaved)} tone="positive" />
+              <StatCard label="Total target" value={formatMoney(totalTarget)} hint="Progress is derived from contributions, not account cash" />
             </div>
           )}
 
@@ -162,7 +138,7 @@ export default async function GoalsPage() {
                     <form action={archiveGoalAction}>
                       <input type="hidden" name="goalId" value={goal.id} />
                       <input type="hidden" name="archived" value="false" />
-                      <SubmitButton variant="ghost" className="px-2 py-1 text-xs">
+                      <SubmitButton variant="ghost" size="small">
                         Restore
                       </SubmitButton>
                     </form>

@@ -14,6 +14,7 @@ import {
 } from "@/components/reports/sections";
 import { TransactionList } from "@/components/transactions/transaction-list";
 import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { getBudgetOverview, monthStart } from "@/lib/data/budgets";
 import {
@@ -27,6 +28,9 @@ import { calculateSavingsRate, formatSavingsRate } from "@/lib/finance/health";
 import { goalProgressWidth } from "@/lib/finance/goals";
 import { formatMoney, sumAmounts } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import AddRounded from "@mui/icons-material/AddRounded";
+import { LinkButton } from "@/components/ui/link-button";
 
 export const metadata = { title: "Dashboard" };
 
@@ -75,26 +79,28 @@ export default async function DashboardPage() {
   const hasDebts = Number(balances.owedToMe) !== 0 || Number(balances.owedByMe) !== 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Where your money stands right now.
-          </p>
-        </div>
-        <Link
-          href="/transactions/new"
-          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          Add transaction
-        </Link>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Dashboard"
+        subtitle="Where your money stands right now."
+        action={
+          <LinkButton href="/transactions/new" variant="primary" startIcon={<AddRounded />}>
+            Add transaction
+          </LinkButton>
+        }
+      />
 
       {/* Headline numbers -------------------------------------------------- */}
       {/* Balances first: spendable, savings and investments are shown
           separately so money set aside is never mixed into everyday cash. */}
       <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Net worth"
+          value={formatMoney(balances.netWorth)}
+          hint="Spendable + savings + investments + debts"
+          size="large"
+          className="sm:col-span-2 lg:row-span-2"
+        />
         <StatCard
           label="Spendable balance"
           value={formatMoney(balances.spendable)}
@@ -119,11 +125,6 @@ export default async function DashboardPage() {
             tone={Number(debtNet) < 0 ? "negative" : "positive"}
           />
         )}
-        <StatCard
-          label="Net worth"
-          value={formatMoney(balances.netWorth)}
-          hint="Spendable + savings + investments + debts"
-        />
         <StatCard
           label="Income this month"
           value={formatMoney(income)}
@@ -230,14 +231,7 @@ export default async function DashboardPage() {
                     </span>
                   </span>
                 </div>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-muted">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{
-                      width: `${goalProgressWidth(goal.percent_complete)}%`,
-                    }}
-                  />
-                </div>
+                <ProgressBar className="mt-2" value={goalProgressWidth(goal.percent_complete)} tone="primary" />
               </li>
             ))}
           </ul>

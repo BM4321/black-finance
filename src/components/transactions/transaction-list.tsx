@@ -1,21 +1,13 @@
+import { Badge } from "@/components/ui/badge";
+import { LinkButton } from "@/components/ui/link-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { TransactionDetail } from "@/lib/data/transactions";
 import { formatMoney } from "@/lib/finance/money";
 
 function TypeBadge({ type }: { type: TransactionDetail["type"] }) {
-  const palette =
-    type === "income"
-      ? "bg-positive/10 text-positive"
-      : type === "expense"
-        ? "bg-negative/10 text-negative"
-        : "bg-primary/10 text-primary";
-  return (
-    <span
-      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${palette}`}
-    >
-      {type}
-    </span>
-  );
+  const tone =
+    type === "income" ? "positive" : type === "expense" ? "negative" : "primary";
+  return <Badge tone={tone}>{type}</Badge>;
 }
 
 /** Signed amount: income positive, expense/transfer negative for the source. */
@@ -79,12 +71,9 @@ export function TransactionList({
             >
               {signedAmount(t)}
             </p>
-            <a
-              href={`/transactions/${t.id}/edit`}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
+            <LinkButton href={`/transactions/${t.id}/edit`} variant="ghost" size="small">
               Edit
-            </a>
+            </LinkButton>
           </div>
         </li>
       ))}

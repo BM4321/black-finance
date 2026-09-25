@@ -1,28 +1,29 @@
-import type { ButtonHTMLAttributes } from "react";
+import MuiButton, { type ButtonProps as MuiButtonProps } from "@mui/material/Button";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
-const VARIANTS: Record<ButtonVariant, string> = {
-  primary:
-    "bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-60",
-  secondary:
-    "border border-border bg-surface text-foreground hover:bg-surface-muted disabled:opacity-60",
-  ghost: "text-muted-foreground hover:text-foreground disabled:opacity-60",
-  danger:
-    "border border-negative/40 text-negative hover:bg-negative/5 disabled:opacity-60",
+/** App variants mapped onto Material UI's variant + colour pairs. */
+export const BUTTON_VARIANTS: Record<
+  ButtonVariant,
+  Pick<MuiButtonProps, "variant" | "color">
+> = {
+  primary: { variant: "contained", color: "primary" },
+  secondary: { variant: "outlined", color: "secondary" },
+  ghost: { variant: "text", color: "inherit" },
+  danger: { variant: "outlined", color: "error" },
 };
 
+/**
+ * Button primitive, built on Material UI.
+ *
+ * Keeps the app's small variant vocabulary so call sites stay readable, and
+ * defaults `type` to "button" so a button inside a form never submits by
+ * accident.
+ */
 export function Button({
-  className = "",
   variant = "primary",
   type = "button",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
-  return (
-    <button
-      type={type}
-      className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed ${VARIANTS[variant]} ${className}`}
-      {...props}
-    />
-  );
+}: Omit<MuiButtonProps, "variant" | "color"> & { variant?: ButtonVariant }) {
+  return <MuiButton type={type} {...BUTTON_VARIANTS[variant]} {...props} />;
 }
