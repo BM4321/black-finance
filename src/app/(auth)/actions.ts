@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { safeRedirect } from "@/lib/redirect";
-import { ACTIVITY_COOKIE } from "@/lib/session";
+import { ACTIVITY_COOKIE, activityCookieOptions } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
 import { signInSchema, signUpSchema } from "@/lib/validation/auth";
 
@@ -23,6 +23,19 @@ export type AuthActionState = {
 
 function firstUrl(value: FormDataEntryValue | null): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Start a fresh idle window for a new session.
+ *
+ * Without this, a clock cookie left over from an earlier session (one that
+ * Supabase ended on its own, e.g. its inactivity limit or a password change)
+ * would make the first request after signing in look hours idle, and the
+ * proxy would sign the user straight back out.
+ */
+async function startIdleClock(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(ACTIVITY_COOKIE, String(Date.now()), activityCookieOptions());
 }
 
 export async function signUp(
@@ -82,6 +95,7 @@ export async function signUp(
     };
   }
 
+  await startIdleClock();
   // redirect() throws internally, so it must stay outside the try/catch above.
   redirect("/dashboard");
 }
@@ -125,6 +139,7 @@ export async function signIn(
     };
   }
 
+  await startIdleClock();
   const redirectTo = firstUrl(formData.get("redirectTo"));
   // redirect() throws internally, so it must stay outside the try/catch above.
   redirect(safeRedirect(redirectTo));
@@ -146,3 +161,38 @@ export async function signOut(): Promise<void> {
 
   redirect("/login");
 }
+
+/**
+ * Sign out because the browser has been idle for the whole window.
+ *
+ * Called by the client-side idle timer, so data does not stay on an unattended
+ * screen until the next click. Lands on the login screen with the timeout
+ * notice and a way back to the page the user was on.
+ */
+export async function endIdleSession(currentPath: string): Promise<void> {
+  const supabase = await createClient();
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // As in signOut(): never leave the UI stuck signed in.
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.delete(ACTIVITY_COOKIE);
+
+  const params = new URLSearchParams({ expired: "1" });
+  const back = safeRedirect(currentPath, "");
+  if (back) params.set("redirectTo", back);
+  redirect(`/login?${params.toString()}`);
+}
+
+/**
+ * Keep-alive for the idle clock.
+ *
+ * Intentionally empty: the request itself passes through the proxy, which
+ * refreshes the activity cookie for a signed-in user. The idle timer calls it
+ * (throttled) while the user is interacting without navigating, e.g. reading
+ * a report or filling in a long form, so the server-side window measures real
+ * inactivity rather than time since the last page load.
+ */
+export async function touchSession(): Promise<void> {}

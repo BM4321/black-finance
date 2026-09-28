@@ -1,12 +1,14 @@
 import Link from "next/link";
 
 import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
+import { IdleTimer } from "@/components/auth/idle-timer";
 import { BrandMark } from "@/components/ui/brand";
 import { MobileNav } from "@/components/ui/mobile-nav";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Sidebar } from "@/components/ui/sidebar";
 import { isAssistantConfigured } from "@/lib/ai/config";
 import { requireUser } from "@/lib/auth";
+import { SESSION_IDLE_MINUTES } from "@/lib/session";
 import { NAV_ITEMS } from "@/lib/ui/nav";
 
 /**
@@ -47,6 +49,9 @@ export default async function AppLayout({
           {children}
         </main>
       </div>
+
+      {/* Signs out an unattended screen when the idle window ends. */}
+      <IdleTimer idleMinutes={SESSION_IDLE_MINUTES} />
 
       {/* Floating assistant is available on every authenticated page. */}
       <AssistantLauncher configured={isAssistantConfigured()} />

@@ -49,18 +49,24 @@ export async function proxy(request: NextRequest) {
   );
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
 
-  // The idle timeout fired: send the user to sign in with an explanation, and
-  // remember where they were so they can pick up where they left off.
-  if (expired && !isAuthRoute) {
+  // Server Action requests are left to the action itself: every action
+  // re-checks the user (requireUser) and redirects through the action
+  // protocol. A proxy redirect on an action POST cannot be followed as one.
+  const isServerAction = request.headers.has("next-action");
+
+  // The idle timeout fired on a protected page: send the user to sign in with
+  // an explanation, and remember where they were so they can pick up where
+  // they left off. Public pages (the landing page) simply render signed out.
+  if (expired && isProtected && !isServerAction) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
     url.searchParams.set("expired", "1");
-    if (isProtected) url.searchParams.set("redirectTo", pathname);
+    url.searchParams.set("redirectTo", pathname);
     return redirectWithCookies(url, response);
   }
 
-  if (isProtected && !user) {
+  if (isProtected && !user && !isServerAction) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";

@@ -70,3 +70,25 @@ export function activityCookieOptions() {
     maxAge: COOKIE_MAX_AGE_SECONDS,
   };
 }
+
+/** Where an idle clock stands: fine, about to expire, or expired. */
+export type IdlePhase = "active" | "warning" | "expired";
+
+/**
+ * Classify idle time for the client-side timer.
+ *
+ * `warningMs` is how long before expiry the "you're about to be signed out"
+ * prompt appears. Returns the phase and the milliseconds left until expiry
+ * (never negative). Pure, so it is unit-tested without timers.
+ */
+export function idlePhase(
+  lastActivityMs: number,
+  nowMs: number,
+  idleMinutes: number,
+  warningMs: number,
+): { phase: IdlePhase; remainingMs: number } {
+  const remainingMs = Math.max(0, lastActivityMs + idleMinutes * 60_000 - nowMs);
+  if (remainingMs === 0) return { phase: "expired", remainingMs };
+  if (remainingMs <= warningMs) return { phase: "warning", remainingMs };
+  return { phase: "active", remainingMs };
+}
