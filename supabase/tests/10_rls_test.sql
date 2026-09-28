@@ -587,7 +587,8 @@ begin;
       insert into public.budgets (user_id, period_month)
         values (uid, date_trunc('month', current_date)::date);
       raise exception 'FAIL: duplicate monthly budget allowed';
-    exception when unique_violation then null; end;
+    -- Rejected by the overlap check (0022) before the unique key is reached.
+    exception when unique_violation or exclusion_violation then null; end;
   end $$;
 rollback;
 
@@ -1161,6 +1162,86 @@ begin;
       delete from public.accounts where id = acct;
       raise exception 'FAIL: deleted an account that still has transactions';
     exception when foreign_key_violation then null; end;
+  end $$;
+rollback;
+
+-- ===========================================================================
+-- 16b. Custom budget periods: spending counted between the budget's own dates,
+--      calendar budgets normalised, overlaps rejected, copy shifts the period.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    ecat uuid;
+    bid uuid; cal uuid; copied uuid;
+    item_spent numeric;
+    b public.budgets%rowtype;
+  begin
+    select id into ecat from public.categories where user_id=uid and kind='expense' limit 1;
+
+    -- Payday-to-payday budget: 25 Sep – 24 Oct 2030, keyed to September.
+    insert into public.budgets (user_id, period_month, period_type, start_date, end_date)
+      values (uid, '2030-09-01', 'custom', '2030-09-25', '2030-10-24') returning id into bid;
+    select * into b from public.budgets where id = bid;
+    if b.period_month <> '2030-09-01' then raise exception 'FAIL: custom key %', b.period_month; end if;
+
+    insert into public.budget_items (budget_id, user_id, category_id, amount)
+      values (bid, uid, ecat, 1000);
+
+    -- Inside the period: 24 Sep (before), 25 Sep and 24 Oct (both edges), 25 Oct (after).
+    insert into public.transactions (user_id,type,amount,account_id,category_id,occurred_on) values
+      (uid,'expense',1,acct,ecat,'2030-09-24'),
+      (uid,'expense',10,acct,ecat,'2030-09-25'),
+      (uid,'expense',100,acct,ecat,'2030-10-24'),
+      (uid,'expense',1000,acct,ecat,'2030-10-25');
+
+    select spent into item_spent
+    from public.get_budget_status('2030-09-01') where category_id = ecat;
+    if item_spent <> 110 then
+      raise exception 'FAIL: custom period spent % (expected 110, edges inclusive)', item_spent;
+    end if;
+
+    -- End date defaults to one month less a day when omitted.
+    insert into public.budgets (user_id, period_type, start_date)
+      values (uid, 'custom', '2031-01-10') returning id into cal;
+    select * into b from public.budgets where id = cal;
+    if b.end_date <> '2031-02-09' then raise exception 'FAIL: default end %', b.end_date; end if;
+    delete from public.budgets where id = cal;
+
+    -- A calendar budget always covers its whole month, whatever dates are sent.
+    insert into public.budgets (user_id, period_month, start_date, end_date)
+      values (uid, '2030-12-01', '2030-12-15', '2030-12-20') returning id into cal;
+    select * into b from public.budgets where id = cal;
+    if b.period_type <> 'calendar' or b.start_date <> '2030-12-01' or b.end_date <> '2030-12-31' then
+      raise exception 'FAIL: calendar not normalised: % % %', b.period_type, b.start_date, b.end_date;
+    end if;
+
+    -- An overlapping period is rejected (October calendar overlaps 25 Sep – 24 Oct).
+    begin
+      insert into public.budgets (user_id, period_month) values (uid, '2030-10-01');
+      raise exception 'FAIL: overlapping budget allowed';
+    exception when exclusion_violation then null; end;
+
+    -- End before start is rejected.
+    begin
+      insert into public.budgets (user_id, period_type, start_date, end_date)
+        values (uid, 'custom', '2031-03-10', '2031-03-01');
+      raise exception 'FAIL: end before start allowed';
+    exception when check_violation then null; end;
+
+    -- Copying the custom budget one month on shifts both dates.
+    copied := public.copy_budget('2030-09-01', '2030-10-01');
+    select * into b from public.budgets where id = copied;
+    if b.period_type <> 'custom' or b.start_date <> '2030-10-25' or b.end_date <> '2030-11-24' then
+      raise exception 'FAIL: copy shifted to % – % (%)', b.start_date, b.end_date, b.period_type;
+    end if;
+    if (select count(*) from public.budget_items where budget_id = copied) <> 1 then
+      raise exception 'FAIL: copied custom budget missing items';
+    end if;
   end $$;
 rollback;
 

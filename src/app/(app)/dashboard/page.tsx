@@ -16,7 +16,7 @@ import { TransactionList } from "@/components/transactions/transaction-list";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
-import { getBudgetOverview, monthStart } from "@/lib/data/budgets";
+import { getBudgetOverview, getCurrentBudgetMonth } from "@/lib/data/budgets";
 import {
   getBalanceBreakdown,
   getMonthlySummary,
@@ -26,6 +26,7 @@ import { listGoals } from "@/lib/data/goals";
 import { getTransactions } from "@/lib/data/transactions";
 import { calculateSavingsRate, formatSavingsRate } from "@/lib/finance/health";
 import { goalProgressWidth } from "@/lib/finance/goals";
+import { formatPeriod } from "@/lib/finance/budget-periods";
 import { formatMoney, sumAmounts } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -57,7 +58,7 @@ export default async function DashboardPage() {
       getSpendingByCategory(supabase, from, to),
       getTransactions(supabase, { page: 1 }),
       listGoals(supabase),
-      getBudgetOverview(supabase, monthStart()),
+      getCurrentBudgetMonth(supabase).then((month) => getBudgetOverview(supabase, month)),
     ]);
 
   // This month is the last bucket in the ordered series; last month the one
@@ -183,6 +184,7 @@ export default async function DashboardPage() {
           items={budgets.items}
           totalSpent={budgets.totalSpent}
           totalBudgeted={budgets.totalBudgeted}
+          periodLabel={formatPeriod(budgets.period)}
         />
       </div>
 

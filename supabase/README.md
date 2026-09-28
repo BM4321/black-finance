@@ -68,7 +68,7 @@ as the prompt to re-run this.
 | `accounts` | Cash/bank/savings/etc. Holds `opening_balance` only |
 | `categories` | Seeded per user on signup; income or expense |
 | `transactions` | income / expense / transfer, amount always positive |
-| `budgets`, `budget_items` | Monthly allowance per expense category |
+| `budgets`, `budget_items` | Allowance per expense category for a calendar month or custom dates (e.g. payday to payday) |
 | `goals`, `goal_contributions` | Savings goals and the ledger of money put toward them |
 | `investments` | Simple investment holdings (quantity, cost, manual current value) |
 | `debts` | Money owed by me and owed to me, with derived status |
@@ -100,6 +100,10 @@ as the prompt to re-run this.
   debts never touch expense totals. Only *open* debts affect net worth: money
   owed to me is an asset, money I owe is a liability. Status is derived, never
   stored, so it cannot contradict the outstanding amount.
+- **Budget periods never overlap.** A budget covers a calendar month or custom
+  dates (`period_type`, `start_date`, `end_date`, both ends inclusive), keyed
+  by `period_month` (the month it starts in). A trigger rejects overlapping
+  periods, so no expense is counted by two budgets.
 - **Goal progress is derived** from `goal_contributions`, for the same reason:
   a goal has no stored `current_amount` to drift.
 - **A goal contribution is not a transaction.** Putting money toward a goal is

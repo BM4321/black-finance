@@ -10,21 +10,53 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { requireUser } from "@/lib/auth";
-import { getBudgetOverview, monthStart } from "@/lib/data/budgets";
+import {
+  getBudgetOverview,
+  getBudgetPeriod,
+  getCurrentBudgetMonth,
+} from "@/lib/data/budgets";
+import {
+  addDays,
+  calendarPeriod,
+  defaultCustomEnd,
+  firstOfMonth,
+  formatPeriod,
+  periodContains,
+  todayIso,
+  type BudgetPeriod,
+} from "@/lib/finance/budget-periods";
 import { listCategories } from "@/lib/data/categories";
 import { formatMoney } from "@/lib/finance/money";
 import { createClient } from "@/lib/supabase/server";
 import { LinkButton } from "@/components/ui/link-button";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata = { title: "Budgets" };
 
-/** Parse `?month=YYYY-MM` into the first-of-month ISO date, defaulting to now. */
-function parseMonth(value: string | string[] | undefined): string {
+/** Parse `?month=YYYY-MM` into the first-of-month ISO date, or null. */
+function parseMonth(value: string | string[] | undefined): string | null {
   if (typeof value === "string" && /^\d{4}-\d{2}$/.test(value)) {
     return `${value}-01`;
   }
-  return monthStart();
+  return null;
+}
+
+/**
+ * Dates to offer for a month that has no budget yet.
+ *
+ * If the previous budget used custom dates (payday to payday), continue the
+ * cycle: start the day after it ends, when that day falls in this month.
+ * Otherwise default to the calendar month.
+ */
+function suggestPeriod(month: string, previous: BudgetPeriod | null): BudgetPeriod {
+  if (previous?.type === "custom") {
+    const start = addDays(previous.end, 1);
+    if (firstOfMonth(start) === month) {
+      return { type: "custom", start, end: defaultCustomEnd(start) };
+    }
+  }
+  return calendarPeriod(month);
 }
 
 /** Shift a month ISO date by a number of months. */
@@ -51,17 +83,22 @@ export default async function BudgetsPage({
 }) {
   await requireUser();
   const params = await searchParams;
-  const period = parseMonth(params.month);
-
   const supabase = await createClient();
-  const [overview, expenseCategories] = await Promise.all([
+  // Without an explicit month, open the budget that covers today, which for a
+  // payday-to-payday budget may have started last month.
+  const period = parseMonth(params.month) ?? (await getCurrentBudgetMonth(supabase));
+  const previousMonth = shiftMonth(period, -1);
+  const nextMonth = shiftMonth(period, 1);
+
+  const [overview, expenseCategories, previousPeriod] = await Promise.all([
     getBudgetOverview(supabase, period),
     listCategories(supabase, "expense"),
+    getBudgetPeriod(supabase, previousMonth),
   ]);
 
   const hasBudget = overview.items.length > 0;
-  const previousMonth = shiftMonth(period, -1);
-  const nextMonth = shiftMonth(period, 1);
+  const formPeriod = hasBudget ? overview.period : suggestPeriod(period, previousPeriod);
+  const isCurrent = hasBudget && periodContains(overview.period, todayIso());
 
   return (
     <div className="space-y-6">
@@ -74,8 +111,11 @@ export default async function BudgetsPage({
               aria-label="Previous month">
               ←
             </LinkButton>
-            <span className="min-w-[9rem] text-center text-sm font-medium">
-              {monthLabel(period)}
+            <span className="flex min-w-[11rem] flex-col items-center text-center">
+              <span className="text-sm font-medium">{monthLabel(period)}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatPeriod(hasBudget ? overview.period : formPeriod)}
+              </span>
             </span>
             <LinkButton href={`/budgets?month=${nextMonth.slice(0, 7)}`} variant="secondary"
               aria-label="Next month">
@@ -87,6 +127,16 @@ export default async function BudgetsPage({
 
       {hasBudget ? (
         <>
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Badge tone={overview.period.type === "custom" ? "primary" : "neutral"}>
+              {overview.period.type === "custom" ? "Custom dates" : "Calendar month"}
+            </Badge>
+            {isCurrent && <Badge tone="positive">Current</Badge>}
+            <span>
+              Counting expenses from {formatPeriod(overview.period)}.
+            </span>
+          </div>
+
           {/* Summary respects the budget-vs-balance distinction explicitly. */}
           <div className="stagger grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard label="Total budgeted" value={formatMoney(overview.totalBudgeted)} />
@@ -112,6 +162,7 @@ export default async function BudgetsPage({
                 categories={expenseCategories}
                 existing={overview.items}
                 periodMonth={period}
+                period={formPeriod}
               />
             </div>
           </details>
@@ -144,6 +195,7 @@ export default async function BudgetsPage({
             categories={expenseCategories}
             existing={[]}
             periodMonth={period}
+            period={formPeriod}
           />
         </Card>
       )}

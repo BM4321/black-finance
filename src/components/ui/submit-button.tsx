@@ -50,12 +50,15 @@ export function SubmitButton({
   variant = "primary",
   size,
   className,
+  disabled = false,
 }: {
   children: React.ReactNode;
   pendingText?: string;
   variant?: ButtonVariant;
   size?: "small" | "medium" | "large";
   className?: string;
+  /** Extra condition that blocks submitting, e.g. an invalid field. */
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
 
@@ -65,7 +68,7 @@ export function SubmitButton({
       variant={variant}
       size={size}
       loading={pending && !pendingText ? true : undefined}
-      disabled={pending}
+      disabled={pending || disabled}
       className={className}
     >
       {pending && pendingText ? pendingText : children}

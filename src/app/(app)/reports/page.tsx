@@ -16,6 +16,7 @@ import { changeRatio, formatChange, shareOfTotal } from "@/lib/finance/reports";
 import { createClient } from "@/lib/supabase/server";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { formatPeriod } from "@/lib/finance/budget-periods";
 
 export const metadata = { title: "Reports" };
 
@@ -188,11 +189,12 @@ export default async function ReportsPage({
         <Card className="animate-fade-up p-4">
           <h2 className="mb-1 text-sm font-semibold">Budget performance</h2>
           <p className="mb-3 text-xs text-muted-foreground">
-            {monthLabel(data.budgets.periodMonth)}
+            {monthLabel(data.budgets.periodMonth)} ·{" "}
+            {formatPeriod(data.budgets.period)}
           </p>
           {data.budgets.items.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No budget set for this month.
+              No budget covers this period.
             </p>
           ) : (
             <>

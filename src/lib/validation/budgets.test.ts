@@ -71,3 +71,49 @@ describe("copyBudgetSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("budgetSchema periods", () => {
+  const base = { periodMonth: "2026-09-01", categoryIds: [CAT_A], amounts: ["100"] };
+
+  it("defaults to a calendar month when no period is sent", () => {
+    expect(budgetSchema.parse(base).periodType).toBe("calendar");
+  });
+
+  it("accepts a payday-to-payday custom period", () => {
+    const result = budgetSchema.parse({
+      ...base,
+      periodType: "custom",
+      startDate: "2026-09-25",
+      endDate: "2026-10-24",
+    });
+    expect(result.startDate).toBe("2026-09-25");
+  });
+
+  it("rejects a custom start date outside the budget's month", () => {
+    const result = budgetSchema.safeParse({
+      ...base,
+      periodType: "custom",
+      startDate: "2026-08-25",
+      endDate: "2026-09-24",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a custom period whose end precedes its start", () => {
+    expect(
+      budgetSchema.safeParse({
+        ...base,
+        periodType: "custom",
+        startDate: "2026-09-25",
+        endDate: "2026-09-01",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("ignores date fields for a calendar budget", () => {
+    expect(
+      budgetSchema.safeParse({ ...base, periodType: "calendar", startDate: "", endDate: "" })
+        .success,
+    ).toBe(true);
+  });
+});

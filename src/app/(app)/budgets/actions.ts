@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/auth";
 import { copyBudget, saveBudgetItems } from "@/lib/data/budgets";
+import { calendarPeriod, type BudgetPeriod } from "@/lib/finance/budget-periods";
 import { createClient } from "@/lib/supabase/server";
 import {
   budgetSchema,
@@ -27,6 +28,9 @@ export async function saveBudgetAction(
 
   const parsed = budgetSchema.safeParse({
     periodMonth: formData.get("periodMonth"),
+    periodType: formData.get("periodType") ?? undefined,
+    startDate: formData.get("startDate") ?? undefined,
+    endDate: formData.get("endDate") ?? undefined,
     categoryIds,
     amounts,
   });
@@ -36,14 +40,20 @@ export async function saveBudgetAction(
   }
 
   const items = parseBudgetItems(parsed.data.categoryIds, parsed.data.amounts);
+  const period: BudgetPeriod =
+    parsed.data.periodType === "custom"
+      ? { type: "custom", start: parsed.data.startDate, end: parsed.data.endDate }
+      : calendarPeriod(parsed.data.periodMonth.slice(0, 7) + "-01");
 
   const supabase = await createClient();
   try {
-    await saveBudgetItems(supabase, user.id, parsed.data.periodMonth, items);
+    await saveBudgetItems(supabase, user.id, parsed.data.periodMonth, items, period);
   } catch (error) {
+    const message = error instanceof Error ? error.message : "";
     return {
-      formError:
-        error instanceof Error ? error.message : "Could not save the budget.",
+      formError: /overlaps another budget/i.test(message)
+        ? "These dates overlap another budget. Shorten this period or change the neighbouring budget first."
+        : message || "Could not save the budget.",
     };
   }
 
