@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "@/app/(auth)/actions";
 import { BrandMark } from "@/components/ui/brand";
 import { NavIcon } from "@/components/ui/nav-icon";
+import { TourLauncher } from "@/components/tour/product-tour";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import {
   SIDEBAR_COOKIE,
@@ -69,7 +70,7 @@ export function SidebarNav({
       </div>
 
       {/* Destinations, grouped ----------------------------------------- */}
-      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-2 py-3">
+      <nav aria-label="Primary" className="flex-1 overflow-y-auto px-2 py-3" data-tour="nav">
         {NAV_GROUPS.map((group) => (
           <List
             key={group}
@@ -132,6 +133,7 @@ export function SidebarNav({
             {email}
           </p>
         )}
+        <TourLauncher labelClassName="sidebar-label" />
         <ThemeToggle variant="row" labelClassName="sidebar-label" />
         <form action={signOut}>
           <ListItemButton

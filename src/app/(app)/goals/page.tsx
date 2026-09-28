@@ -88,7 +88,7 @@ export default async function GoalsPage() {
         title="Goals"
         subtitle="What you are saving toward."
         action={
-          <LinkButton href="/goals/new" variant="primary" startIcon={<AddRounded />}>
+          <LinkButton href="/goals/new" variant="primary" startIcon={<AddRounded />} data-tour="add-goal">
             Add goal
           </LinkButton>
         }

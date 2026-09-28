@@ -93,6 +93,7 @@ export function AssistantLauncher({ configured }: { configured: boolean }) {
       {/* Launcher ------------------------------------------------------- */}
       <Fab
         ref={buttonRef}
+        data-tour="assistant"
         variant="extended"
         color="primary"
         onClick={() => setOpen((value) => !value)}

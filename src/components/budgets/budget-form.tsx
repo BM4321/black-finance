@@ -164,7 +164,7 @@ export function BudgetForm({
       )}
 
       {/* Budget period ------------------------------------------------- */}
-      <fieldset className="space-y-3 rounded-xl border border-border p-4">
+      <fieldset className="space-y-3 rounded-xl border border-border p-4" data-tour="budget-period">
         <legend className="px-1 text-sm font-medium">Budget period</legend>
         <ToggleButtonGroup
           exclusive
@@ -233,7 +233,7 @@ export function BudgetForm({
         </p>
       </fieldset>
 
-      <div className="space-y-2">
+      <div className="space-y-2" data-tour="budget-items">
         {rows.map((row) => {
           const spent = spentByCategory.get(row.categoryId);
           return (

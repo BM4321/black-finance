@@ -17,6 +17,7 @@ import { useState } from "react";
 import { signOut } from "@/app/(auth)/actions";
 import { BrandMark } from "@/components/ui/brand";
 import { NavIcon } from "@/components/ui/nav-icon";
+import { TourLauncher } from "@/components/tour/product-tour";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { isActiveRoute, NAV_GROUPS, type NavItem } from "@/lib/ui/nav";
 
@@ -37,6 +38,7 @@ export function MobileNav({ items, email }: { items: NavItem[]; email?: string }
         onClick={() => setOpen(true)}
         aria-label="Open navigation menu"
         aria-expanded={open}
+        data-tour="menu-button"
         className="md:hidden"
       >
         <MenuRounded />
@@ -108,6 +110,7 @@ export function MobileNav({ items, email }: { items: NavItem[]; email?: string }
           {email && (
             <p className="truncate px-3 pb-2 pt-1 text-xs text-muted-foreground">{email}</p>
           )}
+          <TourLauncher onStart={() => setOpen(false)} />
           <ThemeToggle variant="row" />
           <form action={signOut}>
             <ListItemButton

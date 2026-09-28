@@ -310,6 +310,48 @@ body {
 }
 
 /*
+ * Guided tour. The spotlight is a rounded window cut out of a dimmed page by
+ * a huge box-shadow; it glides between targets and pulses gently. Neither
+ * layer takes pointer events, so the page stays usable underneath.
+ */
+@keyframes tour-pulse {
+  0%,
+  100% {
+    outline-offset: 0;
+    outline-color: var(--primary);
+  }
+  50% {
+    outline-offset: 4px;
+    outline-color: color-mix(in srgb, var(--primary) 40%, transparent);
+  }
+}
+
+.tour-spotlight,
+.tour-backdrop {
+  position: fixed;
+  z-index: 1400;
+  pointer-events: none;
+}
+
+.tour-spotlight {
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(6, 7, 9, 0.62);
+  outline: 2px solid var(--primary);
+  transition:
+    top 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: tour-pulse 1.8s ease-in-out infinite;
+}
+
+.tour-backdrop {
+  inset: 0;
+  background: rgba(6, 7, 9, 0.62);
+  animation: overlay-in 0.25s ease-out both;
+}
+
+/*
  * Respect the operating system's reduced-motion setting. This is an
  * accessibility requirement, not a nicety: users who ask for less motion
  * should get none. We also neutralise delays so staggered content is not
