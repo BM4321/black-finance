@@ -80,9 +80,10 @@ export function defaultCustomEnd(start: string): string {
 /**
  * Why a custom period is invalid for the budget keyed by `month`, or null.
  *
- * The start must fall inside that month (the month is the budget's key and
- * how it is navigated to), the end cannot precede the start, and the period
- * is at most MAX_PERIOD_DAYS long.
+ * The period may start in an earlier month (the October budget can run
+ * 24 Sep – 25 Oct) but must include at least one day of its month, which is
+ * the budget's key and how it is navigated to. The end cannot precede the
+ * start, and the period is at most MAX_PERIOD_DAYS long.
  */
 export function customPeriodError(
   month: string,
@@ -91,12 +92,13 @@ export function customPeriodError(
 ): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return "Choose a start date.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return "Choose an end date.";
-  if (firstOfMonth(start) !== firstOfMonth(month)) {
-    return "The start date must be in the budget’s month.";
-  }
   const days = daysBetween(start, end);
   if (days < 0) return "The end date can’t be before the start date.";
   if (days > MAX_PERIOD_DAYS) return "A budget period can be at most about two months.";
+  const { start: monthFirst, end: monthLast } = calendarPeriod(month);
+  if (start > monthLast || end < monthFirst) {
+    return `The dates must include at least one day of ${monthName(monthFirst)}.`;
+  }
   return null;
 }
 
@@ -110,6 +112,17 @@ export function periodContains(period: BudgetPeriod, day: string): boolean {
  * "28 Dec 2026 – 27 Jan 2027" when the years differ.
  */
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const FULL_MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/** "October 2026" for any date in that month. */
+export function monthName(iso: string): string {
+  const date = toDate(iso);
+  return `${FULL_MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
 
 function dayMonth(date: Date): string {
   return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}`;
