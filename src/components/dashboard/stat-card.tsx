@@ -18,6 +18,7 @@ export function StatCard({
   tone = "neutral",
   size = "medium",
   className,
+  tourId,
 }: {
   label: string;
   value: ReactNode;
@@ -25,9 +26,11 @@ export function StatCard({
   tone?: keyof typeof TONE_COLOR;
   size?: "medium" | "large";
   className?: string;
+  /** Marks the card for the guided tour (data-tour). */
+  tourId?: string;
 }) {
   return (
-    <Card className={`hover-lift ${className ?? ""}`} sx={{ px: 2.5, py: 2 }}>
+    <Card className={`hover-lift ${className ?? ""}`} data-tour={tourId} sx={{ px: 2.5, py: 2 }}>
       <Typography variant="body2" color="text.secondary">
         {label}
       </Typography>

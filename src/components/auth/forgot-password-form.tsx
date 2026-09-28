@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState } from "react";
 
-import { signIn, type AuthActionState } from "@/app/(auth)/actions";
+import { requestPasswordReset, type AuthActionState } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import { FieldError, FormMessage } from "@/components/ui/form-message";
 import { Input } from "@/components/ui/input";
@@ -11,14 +10,13 @@ import { Label } from "@/components/ui/label";
 
 const initialState: AuthActionState = {};
 
-export function SignInForm({ redirectTo }: { redirectTo?: string }) {
-  const [state, action, pending] = useActionState(signIn, initialState);
+export function ForgotPasswordForm() {
+  const [state, action, pending] = useActionState(requestPasswordReset, initialState);
 
   return (
     <form action={action} className="space-y-4" noValidate>
       {state.formError && <FormMessage kind="error">{state.formError}</FormMessage>}
-
-      {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
+      {state.formNotice && <FormMessage kind="notice">{state.formNotice}</FormMessage>}
 
       <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>
@@ -34,26 +32,8 @@ export function SignInForm({ redirectTo }: { redirectTo?: string }) {
         <FieldError messages={state.errors?.email} />
       </div>
 
-      <div className="space-y-1.5">
-        <div className="flex items-baseline justify-between">
-          <Label htmlFor="password">Password</Label>
-          <Link href="/forgot-password" className="text-xs font-medium text-primary">
-            Forgot password?
-          </Link>
-        </div>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          invalid={Boolean(state.errors?.password)}
-        />
-        <FieldError messages={state.errors?.password} />
-      </div>
-
       <Button type="submit" size="large" loading={pending} fullWidth>
-        {pending ? "Signing in…" : "Sign in"}
+        {state.formNotice ? "Send again" : "Send reset link"}
       </Button>
     </form>
   );

@@ -45,7 +45,7 @@ export function AccountForm({
 
       {accountId && <input type="hidden" name="accountId" value={accountId} />}
 
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-tour="account-name">
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
@@ -59,7 +59,7 @@ export function AccountForm({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" data-tour="account-type">
           <Label htmlFor="type">Type</Label>
           <Select
             id="type"
@@ -92,7 +92,7 @@ export function AccountForm({
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" data-tour="account-balance">
         <Label htmlFor="openingBalance">Opening balance</Label>
         <Input
           id="openingBalance"
@@ -122,7 +122,9 @@ export function AccountForm({
         <FieldError messages={state.errors?.notes} />
       </div>
 
-      <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+      <div className="inline-block" data-tour="account-save">
+        <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+      </div>
     </form>
   );
 }

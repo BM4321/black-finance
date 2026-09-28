@@ -154,7 +154,7 @@ export default async function BudgetsPage({
           </Card>
 
           <details className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-            <summary className="cursor-pointer text-sm font-medium">
+            <summary className="cursor-pointer text-sm font-medium" data-tour="budget-edit">
               Edit budget
             </summary>
             <div className="mt-4">

@@ -14,6 +14,7 @@ import {
 } from "@/components/reports/sections";
 import { TransactionList } from "@/components/transactions/transaction-list";
 import { Card } from "@/components/ui/card";
+import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { getBudgetOverview, getCurrentBudgetMonth } from "@/lib/data/budgets";
@@ -46,8 +47,13 @@ function currentMonthRange(): { from: string; to: string } {
   };
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ passwordReset?: string }>;
+}) {
   await requireUser();
+  const { passwordReset } = await searchParams;
   const supabase = await createClient();
   const { from, to } = currentMonthRange();
 
@@ -91,6 +97,10 @@ export default async function DashboardPage() {
         }
       />
 
+      {passwordReset === "1" && (
+        <FormMessage kind="notice">Your password has been changed.</FormMessage>
+      )}
+
       {/* Headline numbers -------------------------------------------------- */}
       {/* Balances first: spendable, savings and investments are shown
           separately so money set aside is never mixed into everyday cash. */}
@@ -101,6 +111,7 @@ export default async function DashboardPage() {
           hint="Spendable + savings + investments + debts"
           size="large"
           className="sm:col-span-2 lg:row-span-2"
+          tourId="net-worth"
         />
         <StatCard
           label="Spendable balance"

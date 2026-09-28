@@ -26,7 +26,7 @@ export default async function AccountsPage() {
         title="Accounts"
         subtitle="Where your money lives."
         action={
-          <LinkButton href="/accounts/new" variant="primary" startIcon={<AddRounded />}>
+          <LinkButton href="/accounts/new" variant="primary" startIcon={<AddRounded />} data-tour="add-account">
             Add account
           </LinkButton>
         }

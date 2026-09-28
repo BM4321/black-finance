@@ -25,6 +25,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `GEMINI_API_KEY` | **Server only** | Google AI Studio key for the assistant |
 | `GEMINI_MODEL` | Server only | Optional model override (defaults to `gemini-3.6-flash`) |
 | `SESSION_IDLE_MINUTES` | Server only | Optional idle timeout in minutes (defaults to `30`) |
+| `SITE_URL` | Server only | Optional public URL for links in emails, e.g. `https://your-app.vercel.app` (defaults to the request's origin) |
 
 `.env.local` is gitignored and is **not** available during a Vercel build.
 
@@ -54,6 +55,26 @@ this is almost always one of:
 - They were added for a different environment than the one building
   (e.g. added to Production but the deploy is a Preview).
 - A name is misspelled, or the value is empty/whitespace.
+
+## Password reset emails
+
+"Forgot password?" on the sign-in page emails a link that opens
+`/auth/confirm`, which signs the user in for the reset and forwards them to
+`/reset-password` to choose a new password. Two Supabase settings make this
+work:
+
+1. **Authentication → URL Configuration → Redirect URLs**: add
+   `https://<your-domain>/auth/confirm` (and `http://localhost:3000/auth/confirm`
+   for local development). Supabase refuses to send users anywhere else.
+2. **Recommended: Authentication → Emails → Reset Password**, set the link to
+
+   ```html
+   <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">Reset password</a>
+   ```
+
+   With the default template the link only works in the browser that asked
+   for it; this one also works when the email is opened on another device.
+   Set **Site URL** to your production domain so `{{ .SiteURL }}` is right.
 
 ## Commands
 

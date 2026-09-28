@@ -22,7 +22,7 @@ const PROTECTED_PREFIXES = [
   "/debts",
   "/reports",
 ];
-const AUTH_ROUTES = ["/login", "/signup"];
+const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"];
 
 /**
  * Build a redirect that preserves the cookies `updateSession` set on the

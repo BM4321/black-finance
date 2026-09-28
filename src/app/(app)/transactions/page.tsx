@@ -89,7 +89,7 @@ export default async function TransactionsPage({
         title="Transactions"
         subtitle={`${total} transaction${total === 1 ? "" : "s"}`}
         action={
-          <LinkButton href="/transactions/new" variant="primary" startIcon={<AddRounded />}>
+          <LinkButton href="/transactions/new" variant="primary" startIcon={<AddRounded />} data-tour="add-transaction">
             Add transaction
           </LinkButton>
         }

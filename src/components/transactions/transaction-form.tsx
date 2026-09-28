@@ -72,6 +72,7 @@ export function TransactionForm({
           if (next) setType(next);
         }}
         aria-label="Transaction type"
+        data-tour="tx-type"
       >
         {TYPES.map((option) => (
           <ToggleButton key={option} value={option} sx={{ py: 1 }}>
@@ -81,7 +82,7 @@ export function TransactionForm({
       </ToggleButtonGroup>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" data-tour="tx-amount">
           <Label htmlFor="amount">Amount</Label>
           <Input
             id="amount"
@@ -111,7 +112,7 @@ export function TransactionForm({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" data-tour="tx-account">
           <Label htmlFor="accountId">
             {isTransfer ? "From account" : "Account"}
           </Label>
@@ -150,7 +151,7 @@ export function TransactionForm({
             <FieldError messages={state.errors?.transferAccountId} />
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" data-tour="tx-category">
             <Label htmlFor="categoryId">Category</Label>
             <Select
               id="categoryId"
@@ -209,7 +210,9 @@ export function TransactionForm({
         <FieldError messages={state.errors?.notes} />
       </div>
 
-      <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+      <div className="inline-block" data-tour="tx-save">
+        <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>
+      </div>
     </form>
   );
 }
