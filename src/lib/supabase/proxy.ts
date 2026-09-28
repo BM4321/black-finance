@@ -52,6 +52,11 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    // No session, so any idle clock left behind belongs to an old one. Drop
+    // it, so it cannot count against the next sign-in.
+    if (request.cookies.has(ACTIVITY_COOKIE)) {
+      response.cookies.delete(ACTIVITY_COOKIE);
+    }
     return { response, user, expired: false };
   }
 

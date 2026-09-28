@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACTIVITY_COOKIE,
   DEFAULT_IDLE_MINUTES,
+  idlePhase,
   isIdleExpired,
   parseActivity,
 } from "@/lib/session";
@@ -53,5 +54,36 @@ describe("parseActivity", () => {
 describe("ACTIVITY_COOKIE", () => {
   it("has a stable name", () => {
     expect(ACTIVITY_COOKIE).toBe("bf_last_activity");
+  });
+});
+
+describe("idlePhase", () => {
+  const now = 1_700_000_000_000;
+  const warning = 60_000;
+
+  it("is active well inside the window", () => {
+    expect(idlePhase(now - 5 * MINUTE, now, 30, warning)).toEqual({
+      phase: "active",
+      remainingMs: 25 * MINUTE,
+    });
+  });
+
+  it("warns in the final minute", () => {
+    expect(idlePhase(now - 29.5 * MINUTE, now, 30, warning)).toEqual({
+      phase: "warning",
+      remainingMs: 0.5 * MINUTE,
+    });
+  });
+
+  it("warns exactly at the warning threshold", () => {
+    expect(idlePhase(now - 29 * MINUTE, now, 30, warning).phase).toBe("warning");
+  });
+
+  it("is expired at and past the window, with no negative remainder", () => {
+    expect(idlePhase(now - 30 * MINUTE, now, 30, warning)).toEqual({
+      phase: "expired",
+      remainingMs: 0,
+    });
+    expect(idlePhase(now - 45 * MINUTE, now, 30, warning).remainingMs).toBe(0);
   });
 });
