@@ -100,25 +100,34 @@ export type Database = {
       budgets: {
         Row: {
           created_at: string
+          end_date: string
           id: string
           name: string | null
           period_month: string
+          period_type: string
+          start_date: string
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          end_date?: string
           id?: string
           name?: string | null
-          period_month: string
+          period_month?: string
+          period_type?: string
+          start_date?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          end_date?: string
           id?: string
           name?: string | null
           period_month?: string
+          period_type?: string
+          start_date?: string
           updated_at?: string
           user_id?: string
         }

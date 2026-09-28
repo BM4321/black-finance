@@ -2,6 +2,8 @@
 
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import IconButton from "@mui/material/IconButton";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import { useActionState, useMemo, useState } from "react";
 
 import type { BudgetActionState } from "@/app/(app)/budgets/actions";
@@ -12,6 +14,16 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import type { BudgetStatusRow } from "@/lib/data/budgets";
+import {
+  addDays,
+  calendarPeriod,
+  customPeriodError,
+  defaultCustomEnd,
+  formatPeriod,
+  MAX_PERIOD_DAYS,
+  type BudgetPeriod,
+  type BudgetPeriodType,
+} from "@/lib/finance/budget-periods";
 import {
   sumBudgetInputs,
   unallocated as computeUnallocated,
@@ -40,6 +52,10 @@ function nextKey(): string {
  * the user compare their allocation against money they have or expect, which
  * is the whole point of the total.
  *
+ * The period picker chooses between a calendar month and custom dates (e.g.
+ * payday to payday). A custom start must fall in the budget's month; the end
+ * follows the start (one month less a day) until the user sets it themselves.
+ *
  * On submit, each row contributes one `categoryId` and one `amount`, which the
  * Server Action zips back together.
  */
@@ -48,13 +64,38 @@ export function BudgetForm({
   categories,
   existing,
   periodMonth,
+  period,
 }: {
   action: Action;
   categories: Category[];
   existing: BudgetStatusRow[];
   periodMonth: string;
+  /** The saved period, or the suggested one for a new budget. */
+  period: BudgetPeriod;
 }) {
   const [state, formAction] = useActionState(action, {});
+
+  const monthPeriod = calendarPeriod(periodMonth);
+  const [periodType, setPeriodType] = useState<BudgetPeriodType>(period.type);
+  const [startDate, setStartDate] = useState(
+    period.type === "custom" ? period.start : monthPeriod.start,
+  );
+  const [endDate, setEndDate] = useState(
+    period.type === "custom" ? period.end : defaultCustomEnd(monthPeriod.start),
+  );
+  // Until the user edits the end date, it follows the start date.
+  const [endTouched, setEndTouched] = useState(period.type === "custom");
+
+  const periodError =
+    periodType === "custom" ? customPeriodError(periodMonth, startDate, endDate) : null;
+  const shownPeriod = periodType === "custom" ? { start: startDate, end: endDate } : monthPeriod;
+
+  function changeStart(value: string) {
+    setStartDate(value);
+    if (!endTouched && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      setEndDate(defaultCustomEnd(value));
+    }
+  }
 
   // Start with the categories already budgeted, or one blank row to invite
   // entry when the budget is empty.
@@ -112,6 +153,82 @@ export function BudgetForm({
       )}
 
       <input type="hidden" name="periodMonth" value={periodMonth} />
+      <input type="hidden" name="periodType" value={periodType} />
+      {periodType === "custom" && (
+        <>
+          <input type="hidden" name="startDate" value={startDate} />
+          <input type="hidden" name="endDate" value={endDate} />
+        </>
+      )}
+
+      {/* Budget period ------------------------------------------------- */}
+      <fieldset className="space-y-3 rounded-xl border border-border p-4">
+        <legend className="px-1 text-sm font-medium">Budget period</legend>
+        <ToggleButtonGroup
+          exclusive
+          fullWidth
+          size="small"
+          value={periodType}
+          onChange={(_, next: BudgetPeriodType | null) => {
+            if (next) setPeriodType(next);
+          }}
+          aria-label="Budget period"
+        >
+          <ToggleButton value="calendar" sx={{ py: 0.75 }}>
+            Calendar month
+          </ToggleButton>
+          <ToggleButton value="custom" sx={{ py: 0.75 }}>
+            Custom dates
+          </ToggleButton>
+        </ToggleButtonGroup>
+
+        {periodType === "custom" && (
+          <div className="animate-fade-in grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="budget-start">Starts on</Label>
+              <Input
+                id="budget-start"
+                type="date"
+                value={startDate}
+                min={monthPeriod.start}
+                max={monthPeriod.end}
+                onChange={(event) => changeStart(event.target.value)}
+                invalid={Boolean(periodError)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="budget-end">Ends on</Label>
+              <Input
+                id="budget-end"
+                type="date"
+                value={endDate}
+                min={startDate}
+                max={/^\d{4}-\d{2}-\d{2}$/.test(startDate) ? addDays(startDate, MAX_PERIOD_DAYS) : undefined}
+                onChange={(event) => {
+                  setEndTouched(true);
+                  setEndDate(event.target.value);
+                }}
+                invalid={Boolean(periodError)}
+              />
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-muted-foreground" role={periodError ? "alert" : undefined}>
+          {periodError ? (
+            <span className="text-negative">{periodError}</span>
+          ) : periodType === "custom" ? (
+            <>
+              Counts expenses from <strong>{formatPeriod(shownPeriod)}</strong>. Pick the
+              day your salary lands; the end defaults to the day before the next one.
+            </>
+          ) : (
+            <>
+              Counts expenses from <strong>{formatPeriod(shownPeriod)}</strong>.
+            </>
+          )}
+        </p>
+      </fieldset>
 
       <div className="space-y-2">
         {rows.map((row) => {
@@ -224,7 +341,9 @@ export function BudgetForm({
         </dl>
       </div>
 
-      <SubmitButton pendingText="Saving…">Save budget</SubmitButton>
+      <SubmitButton pendingText="Saving…" disabled={Boolean(periodError)}>
+        Save budget
+      </SubmitButton>
     </form>
   );
 }

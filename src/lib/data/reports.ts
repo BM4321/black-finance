@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listAccounts } from "@/lib/data/accounts";
-import { getBudgetOverview, monthStart } from "@/lib/data/budgets";
+import { getBudgetOverview, getCurrentBudgetMonth } from "@/lib/data/budgets";
 import {
   getBalanceBreakdown,
   getMonthlySummary,
@@ -70,7 +70,9 @@ export async function getReportsData(
   options: { from: string; to: string; months?: number },
 ): Promise<ReportsData> {
   const months = options.months ?? 12;
-  const budgetMonth = monthStart(new Date(`${options.to}T00:00:00Z`));
+  // The budget covering the report's last day, which with payday-to-payday
+  // budgets may have started in the previous month.
+  const budgetMonth = await getCurrentBudgetMonth(supabase, options.to);
 
   const [
     monthly,

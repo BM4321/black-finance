@@ -1,5 +1,6 @@
 import { listAccounts } from "@/lib/data/accounts";
-import { getBudgetOverview, monthStart } from "@/lib/data/budgets";
+import { getBudgetOverview, getCurrentBudgetMonth } from "@/lib/data/budgets";
+import { formatPeriod, todayIso } from "@/lib/finance/budget-periods";
 import {
   getBalanceBreakdown,
   getMonthlySummary,
@@ -107,7 +108,13 @@ export const periodSummaryProvider: RetrievalProvider = {
   },
 };
 
-/** Budget vs actual for the period's month, if a budget exists. */
+/**
+ * Budget vs actual for the budget covering the question's period.
+ *
+ * Budgets can run on custom dates (payday to payday), so the budget is found
+ * by the dates it covers: the period's last day, or today if the period runs
+ * into the future. Its exact dates are passed along so answers can cite them.
+ */
 export const budgetProvider: RetrievalProvider = {
   id: "budgets",
   async run(
@@ -115,9 +122,11 @@ export const budgetProvider: RetrievalProvider = {
     _question: string,
     period: ResolvedPeriod,
   ): Promise<RetrievalSection | null> {
+    const today = todayIso();
+    const day = period.to < today ? period.to : today < period.from ? period.from : today;
     const overview = await getBudgetOverview(
       supabase,
-      monthStart(new Date(`${period.from}T00:00:00Z`)),
+      await getCurrentBudgetMonth(supabase, day),
     );
 
     if (overview.items.length === 0) {
@@ -131,9 +140,12 @@ export const budgetProvider: RetrievalProvider = {
 
     return {
       id: "budgets",
-      title: `Budget for ${period.label}`,
+      title: `Budget for ${formatPeriod(overview.period)}`,
       source: { label: "budget items", count: overview.items.length },
       data: {
+        periodStart: overview.period.start,
+        periodEnd: overview.period.end,
+        periodType: overview.period.type,
         totalBudgeted: overview.totalBudgeted,
         totalSpent: overview.totalSpent,
         totalRemaining: overview.totalRemaining,

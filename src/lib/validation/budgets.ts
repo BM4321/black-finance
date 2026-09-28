@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { customPeriodError } from "@/lib/finance/budget-periods";
+
 /**
  * Budget form validation.
  *
@@ -15,21 +17,40 @@ const month = z
 
 const amountRegex = /^\d+(\.\d+)?$/;
 
-export const budgetSchema = z.object({
-  periodMonth: month,
-  categoryIds: z.array(z.string().uuid("Invalid category")).max(200),
-  amounts: z
-    .array(
-      z
-        .string()
-        .trim()
-        .refine(
-          (value) => value === "" || amountRegex.test(value),
-          "Enter a valid number",
-        ),
-    )
-    .max(200),
-});
+const isoDate = z
+  .string()
+  .trim()
+  .regex(/^(\d{4}-\d{2}-\d{2})?$/, "Choose a valid date")
+  .optional()
+  .default("");
+
+export const budgetSchema = z
+  .object({
+    periodMonth: month,
+    /** "calendar" (1st to month end) or "custom" (e.g. payday to payday). */
+    periodType: z.enum(["calendar", "custom"]).optional().default("calendar"),
+    startDate: isoDate,
+    endDate: isoDate,
+    categoryIds: z.array(z.string().uuid("Invalid category")).max(200),
+    amounts: z
+      .array(
+        z
+          .string()
+          .trim()
+          .refine(
+            (value) => value === "" || amountRegex.test(value),
+            "Enter a valid number",
+          ),
+      )
+      .max(200),
+  })
+  .superRefine((value, ctx) => {
+    if (value.periodType !== "custom") return;
+    const monthStart =
+      value.periodMonth.length === 7 ? `${value.periodMonth}-01` : value.periodMonth;
+    const error = customPeriodError(monthStart, value.startDate, value.endDate);
+    if (error) ctx.addIssue({ code: "custom", message: error, path: ["startDate"] });
+  });
 
 export type BudgetInput = z.infer<typeof budgetSchema>;
 

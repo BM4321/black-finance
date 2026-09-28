@@ -228,10 +228,13 @@ export function BudgetHealth({
   items,
   totalSpent,
   totalBudgeted,
+  periodLabel,
 }: {
   items: BudgetStatusRow[];
   totalSpent: string;
   totalBudgeted: string;
+  /** The current budget's dates, e.g. "25 Sep – 24 Oct 2026". */
+  periodLabel?: string;
 }) {
   const counts = items.reduce(
     (acc, item) => {
@@ -247,14 +250,19 @@ export function BudgetHealth({
   return (
     <Card className="p-4">
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold">Budget health</h2>
+        <div>
+          <h2 className="text-sm font-semibold">Budget health</h2>
+          {periodLabel && (
+            <p className="text-xs text-muted-foreground">{periodLabel}</p>
+          )}
+        </div>
         <span className="tabular-nums text-xs text-muted-foreground">
           {formatMoney(totalSpent)} / {formatMoney(totalBudgeted)}
         </span>
       </div>
       {items.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          No budget set for this month.
+          No budget covers today.
         </p>
       ) : (
         <div className="grid grid-cols-3 gap-3 text-center">
