@@ -89,12 +89,22 @@ describe("budgetSchema periods", () => {
     expect(result.startDate).toBe("2026-09-25");
   });
 
-  it("rejects a custom start date outside the budget's month", () => {
+  it("accepts a custom period starting in the previous month", () => {
     const result = budgetSchema.safeParse({
       ...base,
       periodType: "custom",
-      startDate: "2026-08-25",
-      endDate: "2026-09-24",
+      startDate: "2026-08-24",
+      endDate: "2026-09-23",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a custom period with no day in the budget's month", () => {
+    const result = budgetSchema.safeParse({
+      ...base,
+      periodType: "custom",
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
     });
     expect(result.success).toBe(false);
   });

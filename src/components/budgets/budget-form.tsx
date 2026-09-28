@@ -53,8 +53,10 @@ function nextKey(): string {
  * is the whole point of the total.
  *
  * The period picker chooses between a calendar month and custom dates (e.g.
- * payday to payday). A custom start must fall in the budget's month; the end
- * follows the start (one month less a day) until the user sets it themselves.
+ * payday to payday). A custom period may start in an earlier month (the
+ * October budget can run 24 Sep – 25 Oct) as long as it includes a day of the
+ * budget's month; the end follows the start (one month less a day) until the
+ * user sets it themselves.
  *
  * On submit, each row contributes one `categoryId` and one `amount`, which the
  * Server Action zips back together.
@@ -190,7 +192,7 @@ export function BudgetForm({
                 id="budget-start"
                 type="date"
                 value={startDate}
-                min={monthPeriod.start}
+                min={addDays(monthPeriod.start, -MAX_PERIOD_DAYS)}
                 max={monthPeriod.end}
                 onChange={(event) => changeStart(event.target.value)}
                 invalid={Boolean(periodError)}
@@ -202,7 +204,7 @@ export function BudgetForm({
                 id="budget-end"
                 type="date"
                 value={endDate}
-                min={startDate}
+                min={startDate > monthPeriod.start ? startDate : monthPeriod.start}
                 max={/^\d{4}-\d{2}-\d{2}$/.test(startDate) ? addDays(startDate, MAX_PERIOD_DAYS) : undefined}
                 onChange={(event) => {
                   setEndTouched(true);
@@ -220,7 +222,8 @@ export function BudgetForm({
           ) : periodType === "custom" ? (
             <>
               Counts expenses from <strong>{formatPeriod(shownPeriod)}</strong>. Pick the
-              day your salary lands; the end defaults to the day before the next one.
+              day your salary lands, even if it’s in the previous month; the end defaults
+              to the day before the next one.
             </>
           ) : (
             <>

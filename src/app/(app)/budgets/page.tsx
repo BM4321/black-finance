@@ -19,7 +19,6 @@ import {
   addDays,
   calendarPeriod,
   defaultCustomEnd,
-  firstOfMonth,
   formatPeriod,
   periodContains,
   todayIso,
@@ -46,14 +45,16 @@ function parseMonth(value: string | string[] | undefined): string | null {
  * Dates to offer for a month that has no budget yet.
  *
  * If the previous budget used custom dates (payday to payday), continue the
- * cycle: start the day after it ends, when that day falls in this month.
- * Otherwise default to the calendar month.
+ * cycle: start the day after it ends (which may still be in the previous
+ * month, e.g. 24 Sep for October). Otherwise default to the calendar month.
  */
 function suggestPeriod(month: string, previous: BudgetPeriod | null): BudgetPeriod {
   if (previous?.type === "custom") {
     const start = addDays(previous.end, 1);
-    if (firstOfMonth(start) === month) {
-      return { type: "custom", start, end: defaultCustomEnd(start) };
+    const end = defaultCustomEnd(start);
+    const { start: monthFirst, end: monthLast } = calendarPeriod(month);
+    if (start <= monthLast && end >= monthFirst) {
+      return { type: "custom", start, end };
     }
   }
   return calendarPeriod(month);

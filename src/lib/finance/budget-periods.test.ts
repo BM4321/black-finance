@@ -48,8 +48,22 @@ describe("customPeriodError", () => {
     expect(customPeriodError("2026-09-01", "2026-09-25", "2026-10-24")).toBeNull();
   });
 
-  it("requires the start date to be in the budget's month", () => {
-    expect(customPeriodError("2026-09-01", "2026-08-25", "2026-09-24")).toMatch(/month/);
+  it("lets the period start in the previous month (24 Sep – 25 Oct for October)", () => {
+    expect(customPeriodError("2026-10-01", "2026-09-24", "2026-10-25")).toBeNull();
+    expect(customPeriodError("2026-09-01", "2026-08-24", "2026-09-23")).toBeNull();
+  });
+
+  it("requires at least one day of the budget's month", () => {
+    expect(customPeriodError("2026-12-01", "2026-11-01", "2026-11-20")).toMatch(
+      /December 2026/,
+    );
+    expect(customPeriodError("2026-09-01", "2026-10-01", "2026-10-20")).toMatch(
+      /September 2026/,
+    );
+  });
+
+  it("accepts a period touching its month by a single day", () => {
+    expect(customPeriodError("2026-10-01", "2026-09-02", "2026-10-01")).toBeNull();
   });
 
   it("rejects an end before the start", () => {

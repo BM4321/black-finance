@@ -1246,6 +1246,65 @@ begin;
 rollback;
 
 -- ===========================================================================
+-- 16c. A custom period may start in the previous month (0023): the October
+--      budget can run 24 Sep – 25 Oct and stays keyed to October.
+-- ===========================================================================
+begin;
+  set local role authenticated;
+  select public.test_as_user('00000000-0000-0000-0000-00000000000a');
+  do $$
+  declare
+    uid uuid := '00000000-0000-0000-0000-00000000000a';
+    acct uuid := '10000000-0000-0000-0000-00000000000a';
+    ecat uuid;
+    bid uuid;
+    item_spent numeric;
+    b public.budgets%rowtype;
+  begin
+    select id into ecat from public.categories where user_id=uid and kind='expense' limit 1;
+
+    insert into public.budgets (user_id, period_month, period_type, start_date, end_date)
+      values (uid, '2032-10-01', 'custom', '2032-09-24', '2032-10-25') returning id into bid;
+    select * into b from public.budgets where id = bid;
+    if b.period_month <> '2032-10-01' then
+      raise exception 'FAIL: spanning budget re-keyed to %', b.period_month;
+    end if;
+
+    insert into public.budget_items (budget_id, user_id, category_id, amount)
+      values (bid, uid, ecat, 500);
+    insert into public.transactions (user_id,type,amount,account_id,category_id,occurred_on) values
+      (uid,'expense',1,acct,ecat,'2032-09-23'),
+      (uid,'expense',10,acct,ecat,'2032-09-24'),
+      (uid,'expense',100,acct,ecat,'2032-10-25'),
+      (uid,'expense',1000,acct,ecat,'2032-10-26');
+
+    select spent into item_spent
+    from public.get_budget_status('2032-10-01') where category_id = ecat;
+    if item_spent <> 110 then
+      raise exception 'FAIL: spanning period spent % (expected 110)', item_spent;
+    end if;
+
+    -- The September budget may run up to the day before (24 Aug – 23 Sep).
+    insert into public.budgets (user_id, period_month, period_type, start_date, end_date)
+      values (uid, '2032-09-01', 'custom', '2032-08-24', '2032-09-23');
+
+    -- A period that includes no day of its month is rejected.
+    begin
+      insert into public.budgets (user_id, period_month, period_type, start_date, end_date)
+        values (uid, '2032-12-01', 'custom', '2032-11-01', '2032-11-20');
+      raise exception 'FAIL: period outside its month allowed';
+    exception when check_violation then null; end;
+
+    -- Moving the September budget into October's dates is still an overlap.
+    begin
+      update public.budgets set end_date = '2032-09-30'
+      where user_id = uid and period_month = '2032-09-01';
+      raise exception 'FAIL: overlap allowed on update';
+    exception when exclusion_violation then null; end;
+  end $$;
+rollback;
+
+-- ===========================================================================
 -- 8. Deleting an auth user cascades to their financial data.
 -- ===========================================================================
 do $$

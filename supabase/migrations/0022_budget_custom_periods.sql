@@ -39,14 +39,17 @@ alter table public.budgets drop constraint if exists budgets_period_type_check;
 alter table public.budgets add constraint budgets_period_type_check
   check (period_type in ('calendar', 'custom'));
 
--- A period is at least one day, at most ~two months, and starts in the month
--- that keys it.
+-- A period is at least one day, at most ~two months, and includes at least
+-- one day of the month that keys it. (Relaxed by 0023 from "starts in that
+-- month"; kept identical here so re-running the whole set cannot fail on
+-- budgets that start in the previous month.)
 alter table public.budgets drop constraint if exists budgets_period_range_check;
 alter table public.budgets add constraint budgets_period_range_check
   check (
     end_date >= start_date
     and end_date - start_date <= 62
-    and period_month = date_trunc('month', start_date)::date
+    and start_date <= (period_month + interval '1 month' - interval '1 day')::date
+    and end_date >= period_month
   );
 
 create index if not exists budgets_user_dates_idx
