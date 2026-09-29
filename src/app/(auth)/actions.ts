@@ -3,6 +3,14 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import {
+  isRecoveryFor,
+  passwordUpdateError,
+  RECOVERY_COOKIE,
+  RESET_DONE_COOKIE,
+  RESET_PASSWORD_PATH,
+  resetDoneCookieOptions,
+} from "@/lib/auth/recovery";
 import { safeRedirect } from "@/lib/redirect";
 import { ACTIVITY_COOKIE, activityCookieOptions } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -225,9 +233,13 @@ async function siteOrigin(): Promise<string> {
  * Email a password reset link.
  *
  * Always answers with the same notice whether or not an account exists, so
- * the form cannot be used to discover who has an account. The link lands on
- * /auth/confirm, which signs the user in for the reset and forwards them to
- * /reset-password.
+ * the form cannot be used to discover who has an account.
+ *
+ * The link returns to /reset-password with no query string, so the single
+ * Redirect URL entry `https://<domain>/reset-password` in Supabase allows it.
+ * (A URL Supabase does not allow is silently replaced by the Site URL, which
+ * is how reset links ended up on the home page.) The proxy hands the link's
+ * one-time code to /auth/confirm, which signs the user in for the reset.
  */
 export async function requestPasswordReset(
   _prev: AuthActionState,
@@ -242,7 +254,7 @@ export async function requestPasswordReset(
   }
 
   const supabase = await createClient();
-  const redirectTo = `${await siteOrigin()}/auth/confirm?next=/reset-password`;
+  const redirectTo = `${await siteOrigin()}${RESET_PASSWORD_PATH}`;
 
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
@@ -278,8 +290,14 @@ export async function requestPasswordReset(
 /**
  * Set a new password for the user signed in by a reset link.
  *
- * The reset link creates a short-lived session (see /auth/confirm); without
- * one the link has expired or was already used.
+ * Requires the recovery session created by /auth/confirm *and* its marker
+ * cookie for the same user, so a merely signed-in user cannot change the
+ * password here without the emailed link. `updateUser` acts on the session's
+ * own user; nothing from the URL chooses the account.
+ *
+ * On success every session is signed out (this recovery session and any
+ * other device, in case the account was compromised) and the page shows a
+ * "Sign in" step. Passwords are never logged or stored by the app.
  */
 export async function updatePassword(
   _prev: AuthActionState,
@@ -293,21 +311,24 @@ export async function updatePassword(
     return { errors: parsed.error.flatten().fieldErrors };
   }
 
+  const expired = {
+    formError: "This reset link has expired or was already used. Request a new one.",
+  };
   const supabase = await createClient();
+  const cookieStore = await cookies();
+
   try {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      return {
-        formError: "This reset link has expired or was already used. Request a new one.",
-      };
+    if (!user || !isRecoveryFor(cookieStore.get(RECOVERY_COOKIE)?.value, user.id)) {
+      return expired;
     }
 
     const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
     if (error) {
-      // e.g. "New password should be different from the old password."
-      return { formError: error.message };
+      console.error("Password update failed:", error.status, error.code);
+      return { formError: passwordUpdateError(error) };
     }
   } catch {
     return {
@@ -316,7 +337,17 @@ export async function updatePassword(
     };
   }
 
-  await startIdleClock();
+  // The recovery is spent: drop the marker, end every session, clear the idle
+  // clock. A failed sign-out must not hide that the password did change.
+  cookieStore.delete({ name: RECOVERY_COOKIE, path: RESET_PASSWORD_PATH });
+  try {
+    await supabase.auth.signOut({ scope: "global" });
+  } catch {
+    // Local cookies are still cleared by the client below.
+  }
+  cookieStore.delete(ACTIVITY_COOKIE);
+  cookieStore.set(RESET_DONE_COOKIE, "1", resetDoneCookieOptions());
+
   // redirect() throws internally, so it must stay outside the try/catch above.
-  redirect("/dashboard?passwordReset=1");
+  redirect(`${RESET_PASSWORD_PATH}?updated=1`);
 }

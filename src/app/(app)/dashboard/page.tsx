@@ -14,7 +14,6 @@ import {
 } from "@/components/reports/sections";
 import { TransactionList } from "@/components/transactions/transaction-list";
 import { Card } from "@/components/ui/card";
-import { FormMessage } from "@/components/ui/form-message";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/auth";
 import { getBudgetOverview, getCurrentBudgetMonth } from "@/lib/data/budgets";
@@ -47,13 +46,8 @@ function currentMonthRange(): { from: string; to: string } {
   };
 }
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ passwordReset?: string }>;
-}) {
+export default async function DashboardPage() {
   await requireUser();
-  const { passwordReset } = await searchParams;
   const supabase = await createClient();
   const { from, to } = currentMonthRange();
 
@@ -96,10 +90,6 @@ export default async function DashboardPage({
           </LinkButton>
         }
       />
-
-      {passwordReset === "1" && (
-        <FormMessage kind="notice">Your password has been changed.</FormMessage>
-      )}
 
       {/* Headline numbers -------------------------------------------------- */}
       {/* Balances first: spendable, savings and investments are shown

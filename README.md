@@ -58,23 +58,42 @@ this is almost always one of:
 
 ## Password reset emails
 
-"Forgot password?" on the sign-in page emails a link that opens
-`/auth/confirm`, which signs the user in for the reset and forwards them to
-`/reset-password` to choose a new password. Two Supabase settings make this
-work:
+Flow: **Forgot password?** on the sign-in page → `/forgot-password` → Supabase
+emails a link back to `/reset-password` → the proxy hands the link's one-time
+code to `/auth/confirm`, which opens a short recovery session → the user sets
+a new password → every session is signed out → **Sign in** with the new one.
+Expired, reused or invalid links show a clear message and a button to send a
+new one.
 
-1. **Authentication → URL Configuration → Redirect URLs**: add
-   `https://<your-domain>/auth/confirm` (and `http://localhost:3000/auth/confirm`
-   for local development). Supabase refuses to send users anywhere else.
-2. **Recommended: Authentication → Emails → Reset Password**, set the link to
+The link's address comes from `SITE_URL` when set, otherwise from the
+address the user requested the reset on, so production, `*.vercel.app` and
+localhost all work without code changes.
 
-   ```html
-   <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">Reset password</a>
-   ```
+**Supabase → Authentication → URL Configuration** (cannot be set from code):
 
-   With the default template the link only works in the browser that asked
-   for it; this one also works when the email is opened on another device.
-   Set **Site URL** to your production domain so `{{ .SiteURL }}` is right.
+- **Site URL**: your production address, e.g. `https://<your-domain>`.
+- **Redirect URLs**: add each address the app runs on, ending in
+  `/reset-password`:
+  - `https://<your-domain>/reset-password`
+  - `https://<project>.vercel.app/reset-password`
+  - `http://localhost:3000/reset-password`
+  - optional, for Vercel preview deployments:
+    `https://*-<team-slug>.vercel.app/reset-password`
+
+  If the address is missing here, Supabase silently sends the user to the
+  Site URL (the home page) instead. That was the cause of reset links opening
+  the home page.
+
+**Optional, recommended — Authentication → Emails → Reset Password**: with the
+default template the link only works in the browser that requested it. To
+make it work on any device, change the link to:
+
+```html
+<a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery">Reset password</a>
+```
+
+Supabase's built-in email sender allows only a few emails per hour on the free
+plan; add your own SMTP server under Authentication → Emails if you need more.
 
 ## Commands
 

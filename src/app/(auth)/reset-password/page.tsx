@@ -1,35 +1,98 @@
 import Typography from "@mui/material/Typography";
-import Link from "next/link";
+import { cookies } from "next/headers";
 
-import { ResetPasswordForm } from "@/components/auth/reset-password-form";
+import {
+  FragmentLinkProblem,
+  ResetLinkProblemNotice,
+  ResetPasswordForm,
+  ResetPasswordSuccess,
+} from "@/components/auth/reset-password-form";
+import { LinkButton } from "@/components/ui/link-button";
 import { FormMessage } from "@/components/ui/form-message";
 import { getUser } from "@/lib/auth";
+import {
+  isRecoveryFor,
+  RECOVERY_COOKIE,
+  RESET_DONE_COOKIE,
+  resetLinkProblem,
+} from "@/lib/auth/recovery";
 
-export const metadata = { title: "Choose a new password" };
+export const metadata = { title: "Reset your password" };
 
 /**
- * Where the password reset email lands (via /auth/confirm, which signs the
- * user in for the reset). Without that session the link has expired or was
- * already used, so we offer to send a new one instead of a form that would
- * fail.
+ * Where a password reset email lands.
+ *
+ * The proxy has already traded the link's one-time code for a recovery
+ * session (via /auth/confirm) before this renders. The form is shown only
+ * with that session *and* its recovery marker; otherwise the page explains
+ * what went wrong and offers a new link, so an expired link or a merely
+ * signed-in visitor never gets a form that would fail or bypass the email.
  */
-export default async function ResetPasswordPage() {
-  const user = await getUser();
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const raw = await searchParams;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "string") params.set(key, value);
+  }
+  const problem = resetLinkProblem(params);
 
+  const header = (
+    <div className="space-y-1">
+      <Typography component="h1" variant="h5">
+        Reset your password
+      </Typography>
+    </div>
+  );
+
+  const cookieStore = await cookies();
+
+  // Just changed: the action signed every session out and left a brief flash.
+  if (params.get("updated") === "1" && cookieStore.get(RESET_DONE_COOKIE)) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <ResetPasswordSuccess />
+      </div>
+    );
+  }
+
+  if (problem) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <ResetLinkProblemNotice problem={problem} />
+      </div>
+    );
+  }
+
+  const user = await getUser();
   if (!user) {
     return (
       <div className="space-y-6">
-        <Typography component="h1" variant="h5">
-          Link expired
-        </Typography>
-        <FormMessage kind="error">
-          This password reset link has expired or was already used.
+        {header}
+        <ResetLinkProblemNotice problem="expired" />
+      </div>
+    );
+  }
+
+  if (!isRecoveryFor(cookieStore.get(RECOVERY_COOKIE)?.value, user.id)) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <FormMessage kind="notice">
+          To change your password, open the link in the reset email we send you. It
+          proves the request came from your inbox.
         </FormMessage>
-        <p className="text-sm text-muted-foreground">
-          <Link href="/forgot-password" className="font-medium text-primary">
-            Request a new reset link
-          </Link>
-        </p>
+        <div className="flex flex-wrap gap-2">
+          <LinkButton href="/forgot-password">Email me a reset link</LinkButton>
+          <LinkButton href="/dashboard" variant="secondary">
+            Back to the app
+          </LinkButton>
+        </div>
       </div>
     );
   }
@@ -38,14 +101,15 @@ export default async function ResetPasswordPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <Typography component="h1" variant="h5">
-          Choose a new password
+          Reset your password
         </Typography>
         <p className="text-sm text-muted-foreground">
-          For <span className="font-medium text-foreground">{user.email}</span>. You’ll
-          stay signed in afterwards.
+          Choose a new password for{" "}
+          <span className="font-medium text-foreground">{user.email}</span>.
         </p>
       </div>
 
+      <FragmentLinkProblem />
       <ResetPasswordForm />
     </div>
   );

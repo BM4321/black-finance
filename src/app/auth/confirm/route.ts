@@ -2,6 +2,11 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 
+import {
+  RECOVERY_COOKIE,
+  recoveryCookieOptions,
+  RESET_PASSWORD_PATH,
+} from "@/lib/auth/recovery";
 import { safeRedirect } from "@/lib/redirect";
 import { ACTIVITY_COOKIE, activityCookieOptions } from "@/lib/session";
 import { createClient } from "@/lib/supabase/server";
@@ -25,8 +30,13 @@ const OTP_TYPES: readonly EmailOtpType[] = [
  * - `?code=…` from Supabase's default template (PKCE); works in the browser
  *   that requested the email.
  *
+ * Password reset links return to /reset-password; the proxy forwards their
+ * code here with `next=/reset-password`.
+ *
  * On success the user is signed in and sent to `next` (only internal paths are
- * allowed). On failure they land on /forgot-password with an explanation.
+ * allowed). For a password reset it also sets the recovery marker that the
+ * reset page requires. On failure a reset lands on /reset-password's
+ * "link expired" state; other links land on /forgot-password.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -35,30 +45,41 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type");
   const code = searchParams.get("code");
 
+  const isRecovery = next === RESET_PASSWORD_PATH;
   const supabase = await createClient();
   let ok = false;
+  let userId: string | undefined;
   try {
     if (tokenHash && type && (OTP_TYPES as readonly string[]).includes(type)) {
-      const { error } = await supabase.auth.verifyOtp({
+      const { data, error } = await supabase.auth.verifyOtp({
         type: type as EmailOtpType,
         token_hash: tokenHash,
       });
       ok = !error;
+      userId = data.user?.id;
     } else if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       ok = !error;
+      userId = data.user?.id;
     }
   } catch {
     ok = false;
   }
 
-  if (!ok) {
-    return NextResponse.redirect(new URL("/forgot-password?link=expired", request.url));
+  if (!ok || (isRecovery && !userId)) {
+    const failure = isRecovery
+      ? `${RESET_PASSWORD_PATH}?error=invalid_link`
+      : "/forgot-password?link=expired";
+    return NextResponse.redirect(new URL(failure, request.url));
   }
 
   // A fresh session starts a fresh idle window (see lib/session.ts).
   const cookieStore = await cookies();
   cookieStore.set(ACTIVITY_COOKIE, String(Date.now()), activityCookieOptions());
+  if (isRecovery && userId) {
+    // Proves to the reset page that this session came from a reset link.
+    cookieStore.set(RECOVERY_COOKIE, userId, recoveryCookieOptions());
+  }
 
   return NextResponse.redirect(new URL(next, request.url));
 }

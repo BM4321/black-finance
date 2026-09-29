@@ -10,9 +10,9 @@ export const metadata = { title: "Sign in" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirectTo?: string; expired?: string }>;
+  searchParams: Promise<{ redirectTo?: string; expired?: string; reset?: string }>;
 }) {
-  const { redirectTo, expired } = await searchParams;
+  const { redirectTo, expired, reset } = await searchParams;
 
   return (
     <div className="space-y-6">
@@ -24,6 +24,12 @@ export default async function LoginPage({
           Welcome back. Pick up where you left off.
         </p>
       </div>
+
+      {reset === "success" && (
+        <FormMessage kind="notice">
+          Password updated. Sign in with your new password.
+        </FormMessage>
+      )}
 
       {expired === "1" && (
         <FormMessage kind="notice">

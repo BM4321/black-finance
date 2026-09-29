@@ -1,5 +1,5 @@
 import OutlinedInput from "@mui/material/OutlinedInput";
-import type { InputHTMLAttributes } from "react";
+import type { InputHTMLAttributes, Ref } from "react";
 
 /**
  * Text input primitive, built on Material UI's OutlinedInput.
@@ -24,8 +24,13 @@ export function Input({
   autoComplete,
   autoFocus,
   readOnly,
+  ref,
   ...native
-}: InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  invalid?: boolean;
+  /** Reaches the native <input> (React 19 passes refs as props). */
+  ref?: Ref<HTMLInputElement>;
+}) {
   return (
     <OutlinedInput
       fullWidth
@@ -44,6 +49,7 @@ export function Input({
       autoFocus={autoFocus}
       readOnly={readOnly}
       error={invalid}
+      inputRef={ref}
       inputProps={{ "aria-invalid": invalid || undefined, ...native }}
     />
   );

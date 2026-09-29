@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { RESET_PASSWORD_PATH } from "@/lib/auth/recovery";
 import { updateSession } from "@/lib/supabase/proxy";
 
 /**
@@ -40,7 +41,38 @@ function redirectWithCookies(url: URL, from: NextResponse) {
   return redirect;
 }
 
+/**
+ * A password reset email returns to /reset-password carrying a one-time
+ * `code` (PKCE) or `token_hash` (custom email template). Hand it to
+ * /auth/confirm, which exchanges it for a recovery session and comes back to
+ * a clean /reset-password, so the code never stays in the address bar or
+ * history. Supabase's own error parameters are left for the page to show.
+ */
+function forwardRecoveryLink(request: NextRequest): NextResponse | null {
+  const { pathname, searchParams } = request.nextUrl;
+  if (pathname !== RESET_PASSWORD_PATH) return null;
+
+  const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  if (!code && !tokenHash) return null;
+
+  const url = request.nextUrl.clone();
+  url.pathname = "/auth/confirm";
+  url.search = "";
+  if (tokenHash) {
+    url.searchParams.set("token_hash", tokenHash);
+    url.searchParams.set("type", "recovery");
+  } else if (code) {
+    url.searchParams.set("code", code);
+  }
+  url.searchParams.set("next", RESET_PASSWORD_PATH);
+  return NextResponse.redirect(url);
+}
+
 export async function proxy(request: NextRequest) {
+  const forwarded = forwardRecoveryLink(request);
+  if (forwarded) return forwarded;
+
   const { response, user, expired } = await updateSession(request);
   const { pathname } = request.nextUrl;
 
